@@ -83,9 +83,12 @@ Events: `mesh.changed` on every registry change, `state.changed` on start and st
 
 ## Notes
 
-- Server plugins start per location on the first request touching it (any
-  client connecting is enough). Sessions created before that are published by
-  the startup sync, and the 60 s heartbeat keeps `last_seen` fresh.
+- Server plugins start per location on the first plugin request touching it:
+  a TUI or desktop on this machine connecting is enough, plain session API
+  calls are not. Until then a restarted server sends no heartbeat, so other
+  desktops list its sessions under Past (they can still be opened). Sessions
+  created before the start are published by the startup sync; the 60 s
+  heartbeat then keeps `last_seen` fresh.
 - Publishing is fire-and-forget: a bounded queue retries with 1 s to 30 s
   backoff while the mesh is down.
 
