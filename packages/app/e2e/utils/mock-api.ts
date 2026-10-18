@@ -425,6 +425,14 @@ const Group = HttpApiGroup.make("mock")
     }),
   )
   .add(
+    HttpApiEndpoint.post("rpcCall", "/api/rpc/:rpcID/:method", {
+      params: { rpcID: Schema.String, method: Schema.String },
+      payload: JsonPayload,
+      success: Json,
+      error: MockNotFound.pipe(HttpApiSchema.status(404)),
+    }),
+  )
+  .add(
     HttpApiEndpoint.post("sessionInterrupt", "/api/session/:sessionID/interrupt", {
       params: SessionParams,
       success: Json,

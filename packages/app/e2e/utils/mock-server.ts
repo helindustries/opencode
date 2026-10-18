@@ -144,6 +144,9 @@ export interface MockServerConfig {
   password?: Resolvable<string>
   // Serves GET /auth/connect/:code: `code` redeems once for `token` (send it as the password); others answer 401.
   pairing?: { code: string; token: string }
+  // Answers POST /api/rpc/:rpcID/:method with `{ output }`; without it every RPC answers 404, like a server
+  // whose plugin is not loaded.
+  rpc?: (input: { rpcID: string; method: string; input: unknown }) => unknown
 }
 
 export type MockPtyInfo = {
@@ -1347,6 +1350,19 @@ function mockHandlers(
           return Effect.sync(() => recordCommand({ sessionID: ctx.params.sessionID, body: ctx.payload })).pipe(
             Effect.andThen(noContent),
           )
+        },
+        rpcCall: (ctx) => {
+          const rpc = config.rpc
+
+          if (!rpc) return Effect.fail(new MockNotFound({ message: `RPC ${ctx.params.rpcID} is not registered` }))
+
+          return Effect.sync(() => ({
+            output: rpc({
+              rpcID: ctx.params.rpcID,
+              method: ctx.params.method,
+              input: Predicate.isObject(ctx.payload) ? ctx.payload["input"] : undefined,
+            }),
+          }))
         },
         // Like the server for an idle session: nothing was running to interrupt.
         sessionInterrupt: () => Effect.succeed({ interrupted: false }),
