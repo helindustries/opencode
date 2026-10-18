@@ -18,6 +18,7 @@ import type { SessionRevert } from "@/session/revert"
 import { Command } from "@opencode/gui-extensions/sdk"
 import { useExtensionHost } from "@/runtime/extension/host"
 import type { Region } from "@/runtime/extension/panels"
+import { reloadSession } from "./reload"
 
 type SessionCommandSource = {
   identity: SessionModel["identity"]
@@ -352,6 +353,18 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       slash: "compact",
       disabled: !actions.session.identity.params.id || actions.session.history.visibleUserMessages().length === 0,
       onSelect: compact,
+    }),
+    sessionCommand({
+      id: "session.reload",
+      title: language.t("command.session.reload"),
+      description: language.t("command.session.reload.description"),
+      slash: "reload",
+      disabled: !actions.session.identity.params.id,
+      onSelect: () => {
+        const sessionID = actions.session.identity.params.id
+
+        if (sessionID) void reloadSession({ data, language, sessionID })
+      },
     }),
     sessionCommand({
       id: "session.background",
