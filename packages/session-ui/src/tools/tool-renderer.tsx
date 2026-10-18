@@ -475,6 +475,13 @@ export function CurrentContextToolGroup(props: {
 }) {
   const i18n = useI18n()
   const tools = createMemo(() => props.parts.filter((part) => part.type === "tool"))
+  // Totals come from the per-file stats the tools already reported; a file change whose metadata has
+  // not arrived yet counts as nothing until it does.
+  const edits = createMemo(() =>
+    tools()
+      .filter(isFileChangeTool)
+      .flatMap((tool) => (toolMetadata(currentToolMetadata(tool)).files ?? []).filter(changedFileDiff)),
+  )
 
   const pending = createMemo(
     () => props.busy || tools().some((tool) => tool.state.status === "streaming" || tool.state.status === "running"),
@@ -634,6 +641,7 @@ export function CurrentContextToolGroup(props: {
                 {(after) => <span data-slot="context-tool-group-prefix">{after()}</span>}
               </Show>
             </span>
+            <DiffChanges appearance="badge" changes={edits()} />
           </div>
         }
       >

@@ -90,6 +90,8 @@
   --color-text-diff-delete-base: var(--text-diff-delete-base);
   --color-text-diff-delete-strong: var(--text-diff-delete-strong);
   --color-text-diff-add-strong: var(--text-diff-add-strong);
+  --color-text-diff-add-badge: var(--text-diff-add-badge);
+  --color-text-diff-delete-badge: var(--text-diff-delete-badge);
   --color-text-on-info-weak: var(--text-on-info-weak);
   --color-text-on-info-strong: var(--text-on-info-strong);
   --color-text-on-warning-weak: var(--text-on-warning-weak);

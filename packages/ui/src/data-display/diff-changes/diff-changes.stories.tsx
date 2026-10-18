@@ -7,7 +7,7 @@ Pair with \`Diff\`/\`DiffSSR\` to contextualize a change set.
 
 ### API
 - Required: \`changes\` as { additions, deletions } or an array of those objects.
-- Optional: \`appearance\` is \`compact\` (default) or \`standard\`.
+- Optional: \`appearance\` is \`compact\` (default), \`standard\`, or \`badge\` (chips that hide a zero side).
 
 ### Variants and states
 - Handles zero-change state (renders nothing).
@@ -49,6 +49,17 @@ export const Appearances = {
     <div style={{ display: "flex", gap: "16px", "align-items": "center" }}>
       <DiffChanges appearance="standard" changes={changes} />
       <DiffChanges appearance="compact" changes={changes} />
+      <DiffChanges appearance="badge" changes={changes} />
+    </div>
+  ),
+}
+
+export const Badge = {
+  render: () => (
+    <div style={{ display: "flex", gap: "16px", "align-items": "center" }}>
+      <DiffChanges appearance="badge" changes={changes} />
+      <DiffChanges appearance="badge" changes={{ additions: 40, deletions: 0 }} />
+      <DiffChanges appearance="badge" changes={{ additions: 0, deletions: 25 }} />
     </div>
   ),
 }
