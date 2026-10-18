@@ -109,6 +109,7 @@ export function TabNavItem(props: {
 
     return data.session.pending.list(sessionID).filter((item) => item.type === "user").length
   })
+
   createEffect(() => {
     const data = serverCtx()?.data
     const sessionID = props.session?.id
