@@ -99,6 +99,23 @@ export function TabNavItem(props: {
     return conn ? serverName(conn) : undefined
   })
 
+  // Prompts waiting in the session inbox, steered or queued, counted for tabs whose session is not on
+  // screen; background tabs do not mount the session route, so the tab loads the inbox itself.
+  const pending = createMemo(() => {
+    const data = serverCtx()?.data
+    const sessionID = props.session?.id
+
+    if (!data || !sessionID) return 0
+
+    return data.session.pending.list(sessionID).filter((item) => item.type === "user").length
+  })
+  createEffect(() => {
+    const data = serverCtx()?.data
+    const sessionID = props.session?.id
+
+    if (data && sessionID) void data.session.pending.sync(sessionID).catch(() => undefined)
+  })
+
   // Like the TUI, a prompt sent to a background tab's session pulses the tab once.
   const [promptPulse, setPromptPulse] = createSignal(0)
   createEffect(() => {
@@ -357,6 +374,17 @@ export function TabNavItem(props: {
         />
       </Menu.Context.Trigger>
 
+      <Show when={pending() > 0 && !props.active}>
+        <span
+          data-slot="tab-pending"
+          role="status"
+          aria-label={language.plural("session.tab.pending", pending())}
+          title={language.plural("session.tab.pending", pending())}
+          class="me-1 shrink-0 rounded-[4px] bg-v2-background-bg-layer-02 px-1 text-[11px] leading-[var(--line-height-compact)] font-[530] text-v2-text-text-muted [font-variant-numeric:tabular-nums]"
+        >
+          {pending()}
+        </span>
+      </Show>
       <div data-slot="tab-close">
         <Show when={unread()}>
           <span data-slot="tab-unread-slot" aria-hidden="true">
