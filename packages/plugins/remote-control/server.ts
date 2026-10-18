@@ -30,7 +30,7 @@ type Runtime = {
 const runtimes = new Map<string, Promise<Runtime>>()
 
 export default Plugin.define({
-  id: "opencode.remote-control",
+  id: RemoteControl.PluginID,
   async setup(ctx) {
     const config = ConfigRemoteControl.decode(ctx.options)
     if (config.enabled === false) return

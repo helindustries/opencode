@@ -34,7 +34,7 @@ import { createTimelineSearchController } from "./timeline/search-controller"
 import { TimelineSearchBar } from "./timeline/search-bar"
 import { ActiveSessionComposerRegion, createActiveSessionRegion } from "./composer/region"
 import { SessionIdentityHeader } from "./session-identity-header"
-import { SessionReloadButton, SessionReviewToggle } from "./header/session-header-actions"
+import { SessionReviewToggle } from "./header/session-header-actions"
 import { SessionRunningMenu } from "./header/session-running-menu"
 import { createAnimatedPresence } from "@/runtime/animated-presence"
 import { createTimelineCache } from "./timeline/cache"
@@ -374,12 +374,11 @@ function SessionScreenContent(props: {
           {/* Keep the control outside panel animations. */}
           <Show when={isDesktop() && messagesReady() && session.identity.params.id}>
             <div
-              class="absolute end-3 top-0 z-30 h-12 flex items-center gap-1"
+              class="absolute end-3 top-0 z-30 h-12 flex items-center"
               data-slot="session-review-toggle"
               onPointerDown={hideTimelineScrollbar}
               onClick={hideTimelineScrollbar}
             >
-              <SessionReloadButton sessionID={session.identity.params.id!} />
               <SessionReviewToggle />
             </div>
           </Show>
