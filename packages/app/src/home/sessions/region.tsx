@@ -2,17 +2,19 @@ import type { HomeScrollController } from "../scroll"
 import type { HomeSessionSearchController } from "./search"
 import type { HomeSessionsController } from "./controller"
 import { HomeSessionsView } from "./view"
-import { Show } from "solid-js"
+import { Show, type JSX } from "solid-js"
 
 export function HomeSessions(props: {
   sessions: HomeSessionsController
   search: HomeSessionSearchController
   scroll: HomeScrollController
+  before?: JSX.Element
 }) {
   return (
     <Show when={props.sessions.session.server()}>
       {(server) => (
         <HomeSessionsView
+          before={props.before}
           language={props.sessions.copy.language}
           groups={props.sessions.data.groups()}
           loading={props.sessions.data.loading()}
