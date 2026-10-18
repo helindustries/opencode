@@ -34,7 +34,7 @@ test("the session context menu renames, exports, and deletes a Home session", as
   const box = await target.boundingBox()
   await target.click({ button: "right", position: { x: 48, y: 12 } })
   await expect(page).toHaveURL("/")
-  await expect(page.getByRole("menuitem")).toHaveText(["Rename", "Export…", "Delete…"])
+  await expect(page.getByRole("menuitem")).toHaveText(["Rename", "Move to group", "Export…", "Delete…"])
   const menu = await page.locator('[data-component="menu-v2-content"]').boundingBox()
   expect(Math.abs((menu?.x ?? 0) - (box?.x ?? 0) - 48)).toBeLessThan(4)
 
@@ -75,6 +75,169 @@ test("the session context menu renames, exports, and deletes a Home session", as
   await dialog.getByRole("button", { name: "Delete session" }).click()
   await removed
   await expect(renamedRow).toBeHidden()
+})
+
+test("user groups take sessions by menu and by drag, survive a reload, and can be deleted", async ({ page }) => {
+  await openHome(page)
+  const source = row(page, fixture.expected.sourceTitle)
+  const target = row(page, fixture.expected.targetTitle)
+  await expect(source).toBeVisible()
+
+  await source.click({ button: "right" })
+  await page.getByRole("menuitem", { name: "Move to group" }).hover()
+  await page.getByRole("menuitem", { name: "New group…" }).click()
+  const name = page.locator('[data-component="home-session-group-rename"]')
+  await expect(name).toBeFocused()
+  await name.fill("Parser work")
+  await name.press("Enter")
+
+  const header = page.locator('[data-component="home-session-group-title"]', { hasText: "Parser work" })
+  const group = page.locator('[data-slot="home-session-group-body"]').first()
+  const titled = (title: string) => new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  await expect(header).toBeVisible()
+  await expect(group.locator('[data-component="home-session-row"]')).toHaveText([titled(fixture.expected.sourceTitle)])
+
+  // HTML5 drag needs real pointer moves; the drop zone appearing proves the drag started.
+  const from = (await target.boundingBox())!
+  await page.mouse.move(from.x + 40, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 60, from.y + from.height / 2 + 10, { steps: 4 })
+  await expect(page.locator('[data-component="home-session-group-new-drop"]')).toBeVisible()
+  const to = (await group.boundingBox())!
+  await page.mouse.move(to.x + 80, to.y + to.height / 2, { steps: 8 })
+  await page.mouse.up()
+  const members = [titled(fixture.expected.sourceTitle), titled(fixture.expected.targetTitle)]
+  await expect(group.locator('[data-component="home-session-row"]')).toHaveText(members)
+
+  await page.reload()
+  await expect(header).toBeVisible({ timeout: APP_READY_TIMEOUT })
+  await expect(group.locator('[data-component="home-session-row"]')).toHaveText(members)
+
+  await header.focus()
+  await header.press("Shift+F10")
+  await page.getByRole("menuitem", { name: "Delete group" }).click()
+  await expect(header).toBeHidden()
+  await expect(source).toBeVisible()
+  await expect(target).toBeVisible()
+})
+
+test("sessions shared by other machines list as connected and past, and past ones can be forgotten", async ({
+  page,
+}) => {
+  const now = Date.now()
+  const record = (id: string, title: string, age: number, harness = "opencode") => ({
+    session_id: id,
+    origin_host: `${harness}@node-b`,
+    harness,
+    harness_version: "1.0.0",
+    capabilities: harness === "opencode" ? ["attach"] : [],
+    server_url: "http://192.168.1.9:4096",
+    title,
+    directory: "/work",
+    project_id: "global",
+    origin_user: "paul",
+    client_hint: "tui",
+    auth_blob: btoa("opencode:pw"),
+    group_tag: null,
+    shared_at: now - age,
+    last_seen: now - age,
+    revoked: false,
+    origin_addr: "192.168.1.9",
+  })
+  let records = [
+    record("ses_live", "Live on B", 10_000),
+    record("ses_old", "Old on B", 600_000),
+    record("cc_1", "Other harness", 1_000, "claude-code"),
+  ]
+  const revoked: unknown[] = []
+  const status = {
+    active: true,
+    target: null,
+    shared: [],
+    publish: false,
+    desktop: "attach",
+    attachable: true,
+    mesh: { url: "http://127.0.0.1:47613", reachable: true, node_id: "node-a", error: null },
+  }
+  await openHome(page, {
+    rpc: ({ rpcID, method, input }) => {
+      if (rpcID !== "rc") return undefined
+      if (method === "status") return status
+      if (method === "sessions.list") return records
+      revoked.push(input)
+      records = records.filter((item) => item.session_id !== "ses_old")
+
+      return { ...record("ses_old", "Old on B", 600_000), revoked: true }
+    },
+  })
+
+  const mesh = page.getByRole("region", { name: "Shared from other machines" })
+  const meshRow = (title: string) => mesh.locator('[data-component="home-mesh-row"]').filter({ hasText: title })
+  await expect(meshRow("Live on B")).toContainText("paul on 192.168.1.9")
+  await expect(mesh.locator('[data-slot="home-mesh-group"]')).toHaveText([/^Connected.*Live on B/, /^Past.*Old on B/])
+  await expect(mesh).toContainText("1 shared session from another harness cannot be opened here")
+  await expect(mesh).not.toContainText("Other harness")
+
+  await meshRow("Live on B").click({ button: "right" })
+  await expect(page.getByRole("menuitem")).toHaveText(["Rename"])
+  await page.keyboard.press("Escape")
+
+  await meshRow("Old on B").focus()
+  await meshRow("Old on B").press("Shift+F10")
+  await expect(page.getByRole("menuitem")).toHaveText(["Rename", "Forget"])
+  await page.getByRole("menuitem", { name: "Forget" }).click()
+  await expect(meshRow("Old on B")).toBeHidden()
+  expect(revoked).toEqual([{ origin_host: "opencode@node-b", session_id: "ses_old" }])
+})
+
+test("a notify-only server lists shared sessions without opening them", async ({ page }) => {
+  const now = Date.now()
+  const opened: string[] = []
+  page.on("request", (request) => {
+    if (request.url().startsWith("http://192.168.1.9:4096")) opened.push(request.url())
+  })
+  await openHome(page, {
+    rpc: ({ method }) =>
+      method === "status"
+        ? {
+            active: true,
+            target: null,
+            shared: [],
+            publish: false,
+            desktop: "notify",
+            attachable: true,
+            mesh: { url: "http://127.0.0.1:47613", reachable: true, node_id: "node-a", error: null },
+          }
+        : [
+            {
+              session_id: "ses_live",
+              origin_host: "opencode@node-b",
+              harness: "opencode",
+              harness_version: "1.0.0",
+              capabilities: ["attach"],
+              server_url: "http://192.168.1.9:4096",
+              title: "Live on B",
+              directory: "/work",
+              project_id: "global",
+              origin_user: "paul",
+              client_hint: "tui",
+              auth_blob: btoa("opencode:pw"),
+              group_tag: null,
+              shared_at: now,
+              last_seen: now,
+              revoked: false,
+              origin_addr: "192.168.1.9",
+            },
+          ],
+  })
+
+  const live = page.locator('[data-component="home-mesh-row"]').filter({ hasText: "Live on B" })
+  await expect(live).toContainText("Listed only")
+  await expect(live).toHaveAttribute("aria-disabled", "true")
+  await live.focus()
+  await live.press("Enter")
+  await expect(page).toHaveURL("/")
+  expect(opened).toEqual([])
 })
 
 test("the Home shortcut focuses session search, and the Home button leaves focus alone", async ({ page }) => {
