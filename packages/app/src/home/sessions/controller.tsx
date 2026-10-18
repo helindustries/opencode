@@ -3,6 +3,7 @@ import { useDialog } from "@opencode/ui/context/dialog"
 import { Button } from "@opencode/ui/button"
 import { DialogFooter, DialogHeader, DialogTitleGroup, Dialog } from "@opencode/ui/dialog"
 import { skipToken, useQuery, useQueryClient } from "@tanstack/solid-query"
+import { Option } from "effect"
 import { type Accessor, createEffect, createMemo, type JSX, startTransition, untrack } from "solid-js"
 import { notifySessionTabsRemoved } from "@/shell/titlebar/session-events"
 import { useCommand } from "@/shell/commands/command"
@@ -27,6 +28,7 @@ import { showToast } from "@/shell/notifications/toast"
 import { archiveHomeSession } from "./archive"
 import type { HomeController } from "../model"
 import { buildHomeSessionRecords, homeProjectForSession, homeSessionLocation, type HomeSessionRecord } from "./records"
+import { createHomeSessionGroups, type HomeUserGroup } from "./groups"
 
 export type { HomeSessionRecord } from "./records"
 
@@ -34,9 +36,10 @@ export type { HomeSessionRecord } from "./records"
 const selectSessions = (sessions: SessionInfo[]) => () => sessions
 
 export type HomeSessionGroup = {
-  id: "today" | "yesterday" | "older"
+  id: "today" | "yesterday" | "older" | `user:${string}`
   title: string
   sessions: HomeSessionRecord[]
+  user?: HomeUserGroup
 }
 
 export type OpenSessionOptions = { background?: boolean }
@@ -101,7 +104,56 @@ export function createHomeSessionsController(home: HomeController) {
   )
 
   const records = createMemo(() => allRecords().slice(0, HOME_SESSION_LIMIT))
-  const groups = createMemo(() => groupSessions(records(), language))
+  const userGroups = createHomeSessionGroups(() => home.selection.value().server)
+  // Group members can be older than the recent-session index, so they resolve from the session store.
+  const memberRecords = createMemo(() => {
+    const ctx = home.server.focusedContext()
+    const known = new Map(records().map((record) => [record.session.id, record] as const))
+    const missing = userGroups
+      .list()
+      .flatMap((group) => group.members)
+      .flatMap((id) => (known.has(id) ? [] : Option.toArray(Option.fromNullishOr(ctx?.data.session.get(id)))))
+    const extra = buildHomeSessionRecords({
+      sessions: () => missing,
+      projectDirectories,
+      projects: home.project.list,
+      resolveProject: (session) => ctx?.projects.forSession(session),
+    })
+    return new Map([...known, ...extra.map((record) => [record.session.id, record] as const)])
+  })
+
+  const groups = createMemo(() => {
+    const assigned = new Set(userGroups.list().flatMap((group) => group.members))
+    const user = userGroups.list().map((group) => ({
+      id: `user:${group.id}` as const,
+      title: group.title,
+      user: group,
+      sessions: group.members.flatMap((id) => Option.toArray(Option.fromNullishOr(memberRecords().get(id)))),
+    }))
+    return [
+      ...user,
+      ...groupSessions(
+        records().filter((record) => !assigned.has(record.session.id)),
+        language,
+      ),
+    ]
+  })
+
+  // A member older than the recent-session index would never render; load it once so its row exists.
+  const syncedMembers = new Set<string>()
+  createEffect(() => {
+    const ctx = home.server.focusedContext()
+    if (!ctx) return
+    const loaded = new Set(records().map((record) => record.session.id))
+    userGroups
+      .list()
+      .flatMap((group) => group.members)
+      .filter((id) => !loaded.has(id) && !syncedMembers.has(id))
+      .forEach((id) => {
+        syncedMembers.add(id)
+        void untrack(() => ctx.data.session.sync(id)).catch(() => {})
+      })
+  })
   const prefetched = new Set<string>()
 
   const location = (record: HomeSessionRecord) => {
@@ -146,6 +198,24 @@ export function createHomeSessionsController(home: HomeController) {
   })
 
   command.register("home.palette", () => [
+    {
+      id: "session.group",
+      title: language.t("command.session.group"),
+      category: language.t("command.category.session"),
+      disabled: records().length === 0,
+      onSelect: async () => {
+        const { HomeSessionGroupDialog } = await import("./group-dialog")
+        void dialog.show(() => (
+          <HomeSessionGroupDialog
+            records={records()}
+            groups={userGroups.list()}
+            groupOf={userGroups.of}
+            onAssign={userGroups.assign}
+            onCreate={(sessionID) => userGroups.create(language.t("home.sessions.group.new"), sessionID)}
+          />
+        ))
+      },
+    },
     {
       id: "command.palette",
       title: language.t("command.palette"),
@@ -381,6 +451,15 @@ export function createHomeSessionsController(home: HomeController) {
       showDelete: (server: ServerConnection.Key, session: SessionInfo) =>
         dialog.show(() => <DeleteDialog server={server} session={session} />),
     },
+    group: {
+      list: userGroups.list,
+      of: userGroups.of,
+      assign: userGroups.assign,
+      create: (sessionID: string) => userGroups.create(language.t("home.sessions.group.new"), sessionID),
+      rename: userGroups.rename,
+      move: userGroups.move,
+      remove: userGroups.remove,
+    },
     tab: {
       isOpen: (record: HomeSessionRecord) => {
         const server = home.selection.value().server
@@ -408,7 +487,8 @@ function groupSessions(records: HomeSessionRecord[], language: ReturnType<typeof
   const now = new Date()
   const today = localDay(now)
   const yesterday = localDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
-  const day = (record: HomeSessionRecord) => localDay(new Date(record.session.time.updated ?? record.session.time.created))
+  const day = (record: HomeSessionRecord) =>
+    localDay(new Date(record.session.time.updated ?? record.session.time.created))
   const todaySessions = records.filter((record) => day(record) === today)
   const yesterdaySessions = records.filter((record) => day(record) === yesterday)
   const olderSessions = records.filter((record) => day(record) !== today && day(record) !== yesterday)
