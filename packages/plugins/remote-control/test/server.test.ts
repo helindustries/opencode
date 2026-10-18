@@ -30,7 +30,10 @@ async function start(options: Record<string, unknown> = {}) {
 describe("server plugin", () => {
   test("nothing is shared until remote control starts", async () => {
     const run = await start({ publish: true })
-    run.event({ type: "session.created", data: { sessionID: "ses_1", projectID: "global", location: { directory: "/work" } } })
+    run.event({
+      type: "session.created",
+      data: { sessionID: "ses_1", projectID: "global", location: { directory: "/work" } },
+    })
     await Bun.sleep(50)
     expect(run.mesh.records.size).toBe(0)
   })
@@ -68,9 +71,15 @@ describe("server plugin", () => {
     const run = await start({ publish: true })
     await run.call("share.start", {})
     run.sessions.set("ses_2", { id: "ses_2", projectID: "global", location: { directory: "/elsewhere" } })
-    run.event({ type: "session.created", data: { sessionID: "ses_2", projectID: "global", location: { directory: "/elsewhere" } } })
+    run.event({
+      type: "session.created",
+      data: { sessionID: "ses_2", projectID: "global", location: { directory: "/elsewhere" } },
+    })
     run.sessions.set("ses_3", { id: "ses_3", title: "new", projectID: "global", location: { directory: "/work" } })
-    run.event({ type: "session.created", data: { sessionID: "ses_3", projectID: "global", location: { directory: "/work" } } })
+    run.event({
+      type: "session.created",
+      data: { sessionID: "ses_3", projectID: "global", location: { directory: "/work" } },
+    })
     await until(() => run.mesh.records.get("ses_3"), "ses_3 published")
     expect(run.mesh.records.has("ses_2")).toBe(false)
   })

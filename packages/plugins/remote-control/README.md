@@ -23,34 +23,34 @@ port and attach to them as ordinary remote servers.
            "project_filter": [],
            "client_name": "paul",
            "server_url": "http://192.168.1.4:45278",
-           "desktop": "attach"
-         }
-       }
-     ]
+           "desktop": "attach",
+         },
+       },
+     ],
    }
    ```
 
 3. Let other machines reach this server: `opencode service set hostname 0.0.0.0`
    (the service listens on `127.0.0.1` by default).
 
-| Option | Default | |
-|---|---|---|
-| `enabled` | `true` | `false` turns the plugin off without removing it |
-| `mesh_url` | `http://127.0.0.1:47613` | ocmesh loopback API |
-| `publish` | `false` | while on, share every top-level session, not only `/rc` ones |
-| `project_filter` | all | project IDs or directories that `publish` covers |
-| `client_name` | OS user | owner name other machines see |
-| `server_url` | managed service URL | where other machines reach this server |
-| `desktop` | `attach` | `notify`: desktops list the rows without opening them |
+| Option           | Default                  |                                                              |
+| ---------------- | ------------------------ | ------------------------------------------------------------ |
+| `enabled`        | `true`                   | `false` turns the plugin off without removing it             |
+| `mesh_url`       | `http://127.0.0.1:47613` | ocmesh loopback API                                          |
+| `publish`        | `false`                  | while on, share every top-level session, not only `/rc` ones |
+| `project_filter` | all                      | project IDs or directories that `publish` covers             |
+| `client_name`    | OS user                  | owner name other machines see                                |
+| `server_url`     | managed service URL      | where other machines reach this server                       |
+| `desktop`        | `attach`                 | `notify`: desktops list the rows without opening them        |
 
 Unknown keys fail plugin setup with the key named.
 
 ## `/rc`
 
-| Input | Effect |
-|---|---|
-| `/rc` while off | turns remote control on and shares the open session |
-| `/rc` while on | menu: share the open session, stay connected, or disconnect |
+| Input               | Effect                                                               |
+| ------------------- | -------------------------------------------------------------------- |
+| `/rc` while off     | turns remote control on and shares the open session                  |
+| `/rc` while on      | menu: share the open session, stay connected, or disconnect          |
 | `/rc <host>[:port]` | asks the local ocmesh to sync with that machine (default port 47614) |
 
 Disconnect revokes every session this machine shared, mesh-wide. The state is
@@ -71,13 +71,13 @@ encrypted.
 
 Defined in `@opencode/schema/remote-control`.
 
-| Method | |
-|---|---|
-| `status` | on/off, target, shared session IDs, mesh reachability, `attachable` |
-| `sessions.list` | mesh records, optionally by `harness`; this machine's own unless `include_local` |
-| `sessions.revoke` | tombstone a record mesh-wide |
-| `mesh.ping` | mesh node ID; with `target`, adds the peer and reports its status |
-| `share.start` / `share.stop` | what `/rc` calls |
+| Method                       |                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `status`                     | on/off, target, shared session IDs, mesh reachability, `attachable`              |
+| `sessions.list`              | mesh records, optionally by `harness`; this machine's own unless `include_local` |
+| `sessions.revoke`            | tombstone a record mesh-wide                                                     |
+| `mesh.ping`                  | mesh node ID; with `target`, adds the peer and reports its status                |
+| `share.start` / `share.stop` | what `/rc` calls                                                                 |
 
 Events: `mesh.changed` on every registry change, `state.changed` on start and stop.
 

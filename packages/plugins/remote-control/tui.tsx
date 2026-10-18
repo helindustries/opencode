@@ -42,7 +42,13 @@ export default Plugin.define({
         title: "Remote control",
         options: [
           ...(sessionID && !current.shared.includes(sessionID)
-            ? [{ title: "Share this session", value: "share", description: "Add it to the sessions this machine shares" }]
+            ? [
+                {
+                  title: "Share this session",
+                  value: "share",
+                  description: "Add it to the sessions this machine shares",
+                },
+              ]
             : []),
           {
             title: "Stay connected",

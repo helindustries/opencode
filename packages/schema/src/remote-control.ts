@@ -78,9 +78,7 @@ export const Definition = Rpc.define({
     },
     "mesh.ping": {
       input: Schema.toStandardSchemaV1(Schema.Struct({ target: optional(Schema.String) })),
-      output: Schema.toStandardSchemaV1(
-        Schema.Struct({ node_id: Schema.String, peer: Schema.NullOr(Peer) }),
-      ),
+      output: Schema.toStandardSchemaV1(Schema.Struct({ node_id: Schema.String, peer: Schema.NullOr(Peer) })),
       errors: {
         mesh_unreachable: Schema.toStandardSchemaV1(meshError),
         mesh_refused: refused,

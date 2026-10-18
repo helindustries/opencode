@@ -82,7 +82,11 @@ test("/rc while off starts sharing the open session", async () => {
 })
 
 test("/rc while on offers stay or disconnect, and disconnect stops sharing", async () => {
-  const run = await rc({ status: { ...idle, active: true, shared: ["ses_1"] }, route: { type: "session", sessionID: "ses_1" }, choice: "disconnect" })
+  const run = await rc({
+    status: { ...idle, active: true, shared: ["ses_1"] },
+    route: { type: "session", sessionID: "ses_1" },
+    choice: "disconnect",
+  })
   await run.run("")
   expect(run.offered).toEqual([["stay", "disconnect"]])
   expect(run.calls).toEqual([["share.stop", undefined]])
@@ -95,7 +99,11 @@ test("staying connected changes nothing", async () => {
 })
 
 test("an unshared open session can be added from the menu", async () => {
-  const run = await rc({ status: { ...idle, active: true }, route: { type: "session", sessionID: "ses_2" }, choice: "share" })
+  const run = await rc({
+    status: { ...idle, active: true },
+    route: { type: "session", sessionID: "ses_2" },
+    choice: "share",
+  })
   await run.run("")
   expect(run.offered).toEqual([["share", "stay", "disconnect"]])
   expect(run.calls[0]).toEqual(["share.start", { session_id: "ses_2", client_hint: "tui" }])
@@ -118,7 +126,10 @@ test("/rc <host> for the machine already synced says so", async () => {
 test("failures surface their reason", async () => {
   const unreachable = await rc({ status: { ...idle, mesh: { ...idle.mesh, reachable: false } } })
   await unreachable.run("")
-  expect(unreachable.toasts.at(-1)).toMatchObject({ variant: "error", message: "Mesh unreachable at http://127.0.0.1:47613" })
+  expect(unreachable.toasts.at(-1)).toMatchObject({
+    variant: "error",
+    message: "Mesh unreachable at http://127.0.0.1:47613",
+  })
 
   const refused = await rc({ start: new Error("not a host or host:port: bad") })
   await refused.run("bad")

@@ -23,8 +23,7 @@ export class Info extends Schema.Class<Info>("Config.RemoteControl")({
     description: "Name shown to other machines as the session owner. Default: the OS user.",
   }),
   server_url: Schema.String.pipe(optional).annotate({
-    description:
-      "URL other machines reach this server at. Default: the managed service's registered URL.",
+    description: "URL other machines reach this server at. Default: the managed service's registered URL.",
   }),
   desktop: Schema.Literals(["attach", "notify"]).pipe(optional).annotate({
     description: "attach: desktop rows open the session on click. notify: rows are listed only.",

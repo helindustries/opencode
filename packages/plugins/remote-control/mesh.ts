@@ -106,7 +106,10 @@ export function create(url: string, handlers: { stored: (record: RemoteControl.R
     pending: () => pending.size,
     health: () => request<{ node_id: string }>("GET", "/health"),
     list: (harness?: string) =>
-      request<RemoteControl.Record[]>("GET", harness ? `/v1/sessions?harness=${encodeURIComponent(harness)}` : "/v1/sessions"),
+      request<RemoteControl.Record[]>(
+        "GET",
+        harness ? `/v1/sessions?harness=${encodeURIComponent(harness)}` : "/v1/sessions",
+      ),
     revoke: (originHost: string, sessionID: string) =>
       request<RemoteControl.Record>(
         "DELETE",

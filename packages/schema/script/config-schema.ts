@@ -57,7 +57,11 @@ function typedPluginOptions(definitions: Readonly<Record<string, JsonSchema>>) {
       key,
       { ...schema, description: type.properties?.[key]?.description ?? schema.description },
     ])
-    return { plugin, definitions: encoded.definitions, root: { ...encoded.root, properties: Object.fromEntries(properties) } }
+    return {
+      plugin,
+      definitions: encoded.definitions,
+      root: { ...encoded.root, properties: Object.fromEntries(properties) },
+    }
   })
   return {
     ...definitions,

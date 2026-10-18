@@ -47,7 +47,9 @@ export default Plugin.define({
       return `${RemoteControl.Harness}@${runtime.nodeID}`
     }
     const matches = (projectID: string) =>
-      !config.project_filter?.length || config.project_filter.includes(projectID) || config.project_filter.includes(directory)
+      !config.project_filter?.length ||
+      config.project_filter.includes(projectID) ||
+      config.project_filter.includes(directory)
 
     const publish = async (sessionID: string) => {
       const session = await ctx.session.get({ sessionID }).catch(() => undefined)
@@ -135,26 +137,30 @@ export default Plugin.define({
       },
       "mesh.ping": async (input, context) => {
         const address = input.target === undefined ? undefined : peerAddress(input.target)
-        if (address === null) return context.error("invalid_target", `not a host or host:port: ${input.target}`, { target: input.target! })
+        if (address === null)
+          return context.error("invalid_target", `not a host or host:port: ${input.target}`, { target: input.target! })
         const health = await runtime.mesh.health().catch((error: Error) => error)
         if (health instanceof Error) return context.error("mesh_unreachable", health.message, { url })
         if (address === undefined) return { node_id: health.node_id, peer: null }
         const added = await runtime.mesh.addPeer(address).catch((error: Error) => error)
-        if (added instanceof MeshRejected)
-          return context.error("mesh_refused", added.message, { status: added.status })
+        if (added instanceof MeshRejected) return context.error("mesh_refused", added.message, { status: added.status })
         if (added instanceof Error) return context.error("mesh_unreachable", added.message, { url })
         return { node_id: health.node_id, peer: await settledPeer(runtime.mesh, address) }
       },
       "share.start": async (input, context) => {
         const address = input.target === undefined ? undefined : peerAddress(input.target)
-        if (address === null) return context.error("invalid_target", `not a host or host:port: ${input.target}`, { target: input.target! })
-        const reached = await (address ? runtime.mesh.addPeer(address) : runtime.mesh.health()).catch((error: Error) => error)
+        if (address === null)
+          return context.error("invalid_target", `not a host or host:port: ${input.target}`, { target: input.target! })
+        const reached = await (address ? runtime.mesh.addPeer(address) : runtime.mesh.health()).catch(
+          (error: Error) => error,
+        )
         if (reached instanceof MeshRejected)
           return context.error("mesh_refused", reached.message, { status: reached.status })
         if (reached instanceof Error) return context.error("mesh_unreachable", reached.message, { url })
         runtime.state.active = true
         runtime.state.target = address ?? runtime.state.target
-        if (input.session_id) runtime.state.shared[input.session_id] ??= { at: Date.now(), hint: input.client_hint ?? "tui" }
+        if (input.session_id)
+          runtime.state.shared[input.session_id] ??= { at: Date.now(), hint: input.client_hint ?? "tui" }
         await runtime.save()
         await Promise.all([...runtime.instances].map((instance) => instance.sync()))
         broadcast("state.changed", { active: true })
@@ -164,7 +170,9 @@ export default Plugin.define({
         const host = await origin().catch(() => undefined)
         if (host)
           await Promise.all(
-            Object.keys(runtime.state.shared).map((sessionID) => runtime.mesh.revoke(host, sessionID).catch(() => undefined)),
+            Object.keys(runtime.state.shared).map((sessionID) =>
+              runtime.mesh.revoke(host, sessionID).catch(() => undefined),
+            ),
           )
         runtime.state = { active: false, target: null, shared: {} }
         await runtime.save()

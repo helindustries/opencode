@@ -35,9 +35,15 @@ describe("Config.RemoteControl", () => {
       properties: Record<string, { description?: string }>
     }
     expect(options.additionalProperties).toBe(false)
-    expect(Object.keys(options.properties).sort()).toEqual(
-      ["client_name", "desktop", "enabled", "mesh_url", "project_filter", "publish", "server_url"],
-    )
+    expect(Object.keys(options.properties).sort()).toEqual([
+      "client_name",
+      "desktop",
+      "enabled",
+      "mesh_url",
+      "project_filter",
+      "publish",
+      "server_url",
+    ])
     expect(options.properties["mesh_url"]?.description).toContain("47613")
   })
 })
