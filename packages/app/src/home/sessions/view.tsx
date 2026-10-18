@@ -1,6 +1,6 @@
 import type { SessionInfo } from "@opencode/client/promise"
 import { Key } from "@solid-primitives/keyed"
-import { createMemo, For, Index, onCleanup, Show } from "solid-js"
+import { createMemo, For, Index, onCleanup, Show, type JSX } from "solid-js"
 import { createStore, type SetStoreFunction } from "solid-js/store"
 import { InlineInput } from "@opencode/ui/inline-input"
 import { Spinner } from "@opencode/ui/spinner"
@@ -47,6 +47,7 @@ function isBackgroundOpen(event: MouseEvent) {
 }
 
 export type HomeSessionsViewProps = {
+  before?: JSX.Element
   language: ReturnType<typeof useLanguage>
   groups: HomeSessionGroup[]
   loading: boolean
@@ -140,6 +141,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
         />
       </div>
       <div class="-mr-3 min-h-[calc(100cqh-64px)] md:min-h-[calc(100cqh-72px)] lg:min-h-[calc(100cqh-96px)]">
+        {props.before}
         <Show
           when={!props.loading}
           fallback={
