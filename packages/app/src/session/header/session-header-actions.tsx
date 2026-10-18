@@ -1,11 +1,62 @@
-import { Show } from "solid-js"
+import { createSignal, Show } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Keybind } from "@opencode/ui/keybind"
+import { Spinner } from "@opencode/ui/spinner"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { useCommand } from "@/shell/commands/command"
 import { useLanguage } from "@/runtime/i18n/language"
+import { useData } from "@/runtime/server/current"
 import { useSessionLayout } from "@/session/session-layout"
+import { reloadSession } from "@/session/commands/reload"
+
+export function SessionReloadButton(props: { sessionID: string }) {
+  const command = useCommand()
+  const language = useLanguage()
+  const data = useData()
+  const [pending, setPending] = createSignal(false)
+  const label = () => language.t("command.session.reload")
+  const keybind = () => command.keybindParts("session.reload")
+
+  const reload = async () => {
+    if (pending()) return
+    setPending(true)
+    await reloadSession({ data, language, sessionID: props.sessionID })
+    setPending(false)
+  }
+
+  return (
+    <Tooltip
+      class="shrink-0"
+      placement="bottom"
+      value={
+        <>
+          {label()}
+          <Show when={keybind().length > 0}>
+            <Keybind keys={keybind()} variant="neutral" />
+          </Show>
+        </>
+      }
+    >
+      <IconButton
+        type="button"
+        data-action="session-reload"
+        variant="ghost-muted"
+        size="large"
+        class="shrink-0"
+        style={{
+          "--v2-overlay-simple-overlay-hover": "var(--v2-background-bg-layer-01)",
+          "--v2-overlay-simple-overlay-pressed": "var(--v2-background-bg-layer-02)",
+        }}
+        disabled={pending()}
+        aria-busy={pending()}
+        onClick={() => void reload()}
+        aria-label={label()}
+        icon={pending() ? <Spinner /> : <Icon name="refresh" />}
+      />
+    </Tooltip>
+  )
+}
 
 export function SessionReviewToggle() {
   const command = useCommand()
