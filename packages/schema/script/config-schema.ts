@@ -1,5 +1,10 @@
 import { Schema } from "effect"
 import { Config } from "../src/config.js"
+import { ConfigRemoteControl } from "../src/config/remote-control.js"
+
+// Plugin entries carry untyped `options`; in-repo plugins with a typed options class get it applied to
+// entries whose package names them, so editors can complete the block.
+const pluginOptions = [{ package: "remote-control", name: "Config.RemoteControl", schema: ConfigRemoteControl.Info }]
 
 interface JsonSchema {
   readonly [key: string]: unknown
@@ -24,7 +29,7 @@ export async function generate() {
     type: "object",
     properties: merge(describe(current.properties ?? {}), previous.properties ?? {}),
     additionalProperties: false,
-    $defs: { ...legacyDefinitions, ...definitions },
+    $defs: { ...legacyDefinitions, ...typedPluginOptions(definitions) },
     allowComments: true,
     allowTrailingCommas: true,
   }
@@ -40,6 +45,32 @@ function describe(properties: Readonly<Record<string, JsonSchema>>) {
       { ...schema, description: type.properties?.[key]?.description ?? schema.description },
     ]),
   )
+}
+
+function typedPluginOptions(definitions: Readonly<Record<string, JsonSchema>>) {
+  const entry = definitions["Config.Plugin.EntryEncoded"]
+  if (!entry) throw new Error("Config.Plugin.EntryEncoded is missing from the generated definitions")
+  const typed = pluginOptions.map((plugin) => {
+    const encoded = document(plugin.schema)
+    const type = document(Schema.toType(plugin.schema)).root
+    const properties = Object.entries(encoded.root.properties ?? {}).map(([key, schema]) => [
+      key,
+      { ...schema, description: type.properties?.[key]?.description ?? schema.description },
+    ])
+    return { plugin, definitions: encoded.definitions, root: { ...encoded.root, properties: Object.fromEntries(properties) } }
+  })
+  return {
+    ...definitions,
+    ...Object.assign({}, ...typed.map((item) => item.definitions)),
+    ...Object.fromEntries(typed.map((item) => [item.plugin.name, item.root])),
+    "Config.Plugin.EntryEncoded": {
+      ...entry,
+      allOf: typed.map((item) => ({
+        if: { properties: { package: { pattern: item.plugin.package } }, required: ["package"] },
+        then: { properties: { options: { $ref: `#/$defs/${item.plugin.name}` } } },
+      })),
+    },
+  }
 }
 
 // Classes generate a root reference to their definition; plain structs generate the object inline.
