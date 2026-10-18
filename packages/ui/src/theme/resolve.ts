@@ -243,6 +243,10 @@ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): Res
   tokens["text-diff-delete-base"] = diffDelete[9]
   tokens["text-diff-delete-strong"] = diffDelete[11]
   tokens["text-diff-add-strong"] = diffAdd[isDark ? 7 : 11]
+  // Change-count chips sit on surface-diff-*-base; dark add-strong is too dim there, so the badge
+  // role takes the step that keeps both pairs readable in both modes.
+  tokens["text-diff-add-badge"] = diffAdd[isDark ? 10 : 11]
+  tokens["text-diff-delete-badge"] = diffDelete[11]
   tokens["text-on-info-weak"] = on(infob)
   tokens["text-on-info-strong"] = on(infos)
   tokens["text-on-warning-weak"] = on(warnb)

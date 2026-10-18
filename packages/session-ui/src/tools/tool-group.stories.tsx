@@ -242,6 +242,61 @@ export const StickyHeader = {
   },
 }
 
+// The "Used" row totals only the file changes it folds; each case is one rollup, collapsed.
+export const DiffTotals = {
+  render: () => {
+    const [open, setOpen] = createStore<Record<string, boolean>>({})
+    const change = (path: string, status: "added" | "deleted" | "modified", additions: number, deletions: number) => ({
+      file: path,
+      status,
+      additions,
+      deletions,
+      patch: createTwoFilesPatch(path, path, "line\n".repeat(deletions), "line\n".repeat(additions), "", ""),
+    })
+    const edit = (id: string, files: ReturnType<typeof change>[]) =>
+      storyTool(id, "edit", "completed", { path: files[0]?.file ?? "" }, { metadata: { files } })
+    const shell = (id: string) => storyTool(id, "shell", "completed", { command: "bun test" }, { output: "ok" })
+
+    const cases: Array<[string, ContextGroupPart[]]> = [
+      [
+        "folded file changes",
+        [
+          edit("totals_a", [change("src/a.ts", "modified", 12, 3)]),
+          edit("totals_b", [change("src/b.ts", "modified", 4, 9)]),
+          edit("totals_c", [change("src/c.ts", "modified", 1, 1)]),
+        ],
+      ],
+      [
+        "mixed with commands",
+        [shell("mixed_shell"), edit("mixed_edit", [change("src/d.ts", "modified", 7, 2)]), shell("mixed_tail")],
+      ],
+      ["commands only", [shell("commands_a"), shell("commands_b")]],
+      ["empty diff", [storyTool("empty_edit", "edit", "completed", { path: "src/e.ts" }, { metadata: { files: [] } })]],
+      ["creation", [edit("created", [change("src/new.ts", "added", 40, 0)])]],
+      ["deletion", [edit("deleted", [change("src/old.ts", "deleted", 0, 25)])]],
+      ["metadata not loaded yet", [storyTool("loading_edit", "edit", "running", { path: "src/f.ts" })]],
+    ]
+
+    return (
+      <section class="mx-auto flex w-full max-w-[720px] flex-col gap-3 p-6">
+        {cases.map(([label, parts]) => (
+          <div data-story-case={label}>
+            <div class="text-12-regular text-text-weak">{label}</div>
+            <CurrentSessionProviders document={storyDocument(parts)}>
+              <CurrentContextToolGroup
+                parts={parts}
+                busy={false}
+                open={open[label] ?? false}
+                onOpenChange={(value) => setOpen(label, value)}
+              />
+            </CurrentSessionProviders>
+          </div>
+        ))}
+      </section>
+    )
+  },
+}
+
 export const PatchFollowUps = {
   args: { separator: "none" },
   argTypes: { separator: { control: "select", options: ["none", "shell", "error", "reasoning"] } },

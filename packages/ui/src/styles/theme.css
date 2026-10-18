@@ -184,6 +184,8 @@
   --text-diff-delete-base: #ed4831;
   --text-diff-delete-strong: #601a0f;
   --text-diff-add-strong: #1d3e1c;
+  --text-diff-add-badge: #1d3e1c;
+  --text-diff-delete-badge: #601a0f;
   --text-on-info-weak: rgba(0, 0, 0, 0.453);
   --text-on-info-strong: rgba(0, 0, 0, 0.915);
   --text-on-warning-weak: rgba(0, 0, 0, 0.453);
@@ -455,6 +457,8 @@
     --text-diff-delete-base: #fc533a;
     --text-diff-delete-strong: #ffe0da;
     --text-diff-add-strong: #4a7348;
+    --text-diff-add-badge: #9bcd97;
+    --text-diff-delete-badge: #ffe0da;
     --text-on-info-weak: rgba(255, 255, 255, 0.404);
     --text-on-info-strong: rgba(255, 255, 255, 0.928);
     --text-on-warning-weak: rgba(255, 255, 255, 0.404);

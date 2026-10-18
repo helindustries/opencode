@@ -85,6 +85,8 @@
 --text-diff-delete-base: var(--ember-light-10);
 --text-diff-delete-strong: var(--ember-light-12);
 --text-diff-add-strong: var(--mint-light-12);
+--text-diff-add-badge: var(--mint-light-12);
+--text-diff-delete-badge: var(--ember-light-12);
 --text-on-info-weak: var(--smoke-dark-alpha-9);
 --text-on-info-strong: var(--smoke-dark-alpha-12);
 --text-on-warning-weak: var(--smoke-dark-alpha-9);

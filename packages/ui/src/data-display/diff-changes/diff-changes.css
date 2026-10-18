@@ -25,6 +25,30 @@
   }
 }
 
+[data-component="diff-changes"][data-appearance="badge"] {
+  gap: 4px;
+
+  [data-slot="diff-changes-additions"],
+  [data-slot="diff-changes-deletions"] {
+    padding: 0 4px;
+    border-radius: 4px;
+    font-family: var(--font-family-mono);
+    font-feature-settings: var(--font-family-mono--font-feature-settings);
+    font-size: 11px;
+    line-height: var(--line-height-compact);
+  }
+
+  [data-slot="diff-changes-additions"] {
+    color: var(--text-diff-add-badge);
+    background-color: var(--surface-diff-add-base);
+  }
+
+  [data-slot="diff-changes-deletions"] {
+    color: var(--text-diff-delete-badge);
+    background-color: var(--surface-diff-delete-base);
+  }
+}
+
 [data-component="diff-changes"][data-appearance="standard"] {
   [data-slot="diff-changes-additions"],
   [data-slot="diff-changes-deletions"] {
