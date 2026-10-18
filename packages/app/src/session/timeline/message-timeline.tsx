@@ -27,6 +27,7 @@ import { parseVoiceDelegation } from "./voice-delegation"
 import { useCommand } from "@/shell/commands/command"
 import { SessionAncestorTrail, SessionProjectMenu, SessionTitleHeader } from "../session-identity-header"
 import { SessionHeaderSpacer } from "@/session/header/session-header"
+import { SessionReloadButton } from "@/session/header/session-header-actions"
 import { SessionRunningMenu } from "@/session/header/session-running-menu"
 
 type BlockingTask = { type: "shell" | "subagent"; partID: string; id?: string; label?: string }
@@ -589,7 +590,7 @@ function MessageTimelineView(
                 </div>
               </div>
               <Show when={sessionID()} keyed>
-                {(_id) => (
+                {(id) => (
                   <div class="shrink-0 flex items-center gap-2">
                     {props.search}
                     <ExtensionSlot
@@ -606,6 +607,9 @@ function MessageTimelineView(
                         },
                       }}
                     />
+                    <Show when={props.reserveReviewToggle}>
+                      <SessionReloadButton sessionID={id} />
+                    </Show>
                     <SessionHeaderSpacer visible={props.reserveReviewToggle} />
                   </div>
                 )}
