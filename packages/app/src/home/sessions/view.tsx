@@ -1,6 +1,6 @@
 import type { SessionInfo } from "@opencode/client/promise"
 import { Key } from "@solid-primitives/keyed"
-import { createMemo, For, Index, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, For, Index, on, onCleanup, Show } from "solid-js"
 import { createStore, type SetStoreFunction } from "solid-js/store"
 import { InlineInput } from "@opencode/ui/inline-input"
 import { Spinner } from "@opencode/ui/spinner"
@@ -24,6 +24,7 @@ import {
   type HomeSessionRecord,
   type OpenSessionOptions,
 } from "./controller"
+import type { HomeUserGroup } from "./groups"
 
 const SHOW_HOME_SESSION_ARCHIVE = false
 
@@ -86,6 +87,13 @@ export type HomeSessionsViewProps = {
   onSearchSelectActive: () => void
   onSearchHighlight: (record: HomeSessionRecord) => void
   onSearchSelect: (record: HomeSessionRecord, options?: OpenSessionOptions) => void
+  userGroups: HomeUserGroup[]
+  groupOf: (sessionID: string) => HomeUserGroup | undefined
+  onAssignGroup: (sessionID: string, groupID: string | undefined) => void
+  onCreateGroup: (sessionID: string) => string | undefined
+  onRenameGroup: (groupID: string, title: string) => void
+  onMoveGroup: (groupID: string, offset: -1 | 1) => void
+  onDeleteGroup: (groupID: string) => void
 }
 
 // Session store updates recreate row components, so row-local state would
@@ -94,10 +102,51 @@ export type HomeSessionsViewProps = {
 type HomeSessionRowUI = {
   menu: { id: string; x: number; y: number } | undefined
   editor: { id: string; draft: string; renaming: boolean } | undefined
+  groupMenu: { id: string; x: number; y: number } | undefined
+  groupEditor: { id: string; draft: string } | undefined
+  dragging: string | undefined
+  dropTarget: string | undefined
 }
 
 export function HomeSessionsView(props: HomeSessionsViewProps) {
-  const [rowUI, setRowUI] = createStore<HomeSessionRowUI>({ menu: undefined, editor: undefined })
+  const [rowUI, setRowUI] = createStore<HomeSessionRowUI>({
+    menu: undefined,
+    editor: undefined,
+    groupMenu: undefined,
+    groupEditor: undefined,
+    dragging: undefined,
+    dropTarget: undefined,
+  })
+  const endDrag = () => setRowUI({ dragging: undefined, dropTarget: undefined })
+  const startGroupRename = (groupID: string | undefined) => {
+    const group = props.userGroups.find((item) => item.id === groupID)
+    if (!group) return
+    setRowUI("groupEditor", { id: group.id, draft: group.title })
+    requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        `[data-component="home-session-group-rename"][data-group-id="${group.id}"]`,
+      )
+      input?.focus()
+      input?.select()
+    })
+  }
+  // A drop on a user group assigns the dragged session to it; a drop on a calendar group takes it
+  // out of any user group, which is the drag equivalent of "Remove from group".
+  const dropHandlers = (target: () => HomeSessionGroup) => ({
+    onDragOver: (event: DragEvent) => {
+      if (!rowUI.dragging) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+      setRowUI("dropTarget", target().id)
+    },
+    onDrop: (event: DragEvent) => {
+      const sessionID = rowUI.dragging
+      if (!sessionID) return
+      event.preventDefault()
+      props.onAssignGroup(sessionID, target().user?.id)
+      endDrag()
+    },
+  })
   const [hover, setHover] = createStore<{ sessionID: string | undefined }>({ sessionID: undefined })
   const showLocations = createAltHold(props.desktop, props.onRevealLocations)
 
@@ -158,19 +207,58 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
             }
           >
             <div ref={props.onSetContent} class="flex flex-col pt-1 pr-3 pb-16 md:pt-3">
+              <Show when={rowUI.dragging}>
+                <div
+                  data-component="home-session-group-new-drop"
+                  class="mb-3 flex h-10 items-center justify-center rounded-[6px] border border-dashed text-12-regular text-v2-text-text-muted"
+                  classList={{
+                    "border-v2-border-border-base bg-v2-overlay-simple-overlay-hover": rowUI.dropTarget === "new",
+                    "border-v2-border-border-muted": rowUI.dropTarget !== "new",
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    setRowUI("dropTarget", "new")
+                  }}
+                  onDrop={(event) => {
+                    const sessionID = rowUI.dragging
+                    if (!sessionID) return
+                    event.preventDefault()
+                    endDrag()
+                    startGroupRename(props.onCreateGroup(sessionID))
+                  }}
+                >
+                  {props.language.t("home.sessions.group.dropNew")}
+                </div>
+              </Show>
               {/* Index keeps group subtrees mounted when the group arrays are
                   rebuilt, so store updates cannot recreate rows mid-gesture. */}
               <Index each={props.groups}>
                 {(group, index) => (
                   <>
                     <HomeSessionGroupHeader
+                      groupKey={group().id}
                       title={group().title}
                       titleOpacity={props.titleOpacity(group().id)}
                       onSetRef={(element) => props.onSetHeader(group().id, element)}
                       elevated={index === 0}
+                      group={group().user}
+                      language={props.language}
+                      rowUI={rowUI}
+                      setRowUI={setRowUI}
+                      first={index === 0}
+                      last={!props.groups[index + 1]?.user}
+                      onRename={startGroupRename}
+                      onSaveRename={props.onRenameGroup}
+                      onMove={props.onMoveGroup}
+                      onDelete={props.onDeleteGroup}
+                      drop={dropHandlers(group)}
                     />
                     <div
-                      class={`flex min-w-0 flex-col gap-px pt-2 md:pt-4 ${index === props.groups.length - 1 ? "" : "mb-6"}`}
+                      data-slot="home-session-group-body"
+                      data-drop-target={rowUI.dropTarget === group().id}
+                      class={`flex min-w-0 flex-col gap-px rounded-[6px] pt-2 md:pt-4 ${index === props.groups.length - 1 ? "" : "mb-6"}`}
+                      classList={{ "bg-v2-overlay-simple-overlay-hover": rowUI.dropTarget === group().id }}
+                      {...dropHandlers(group)}
                     >
                       {/* Rows key by session ID: session.sync replaces the
                           stored session object wholesale, so reference-keyed
@@ -183,6 +271,8 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
                             record={record()}
                             rowUI={rowUI}
                             setRowUI={setRowUI}
+                            onEndDrag={endDrag}
+                            onStartGroupRename={startGroupRename}
                             showLocations={showLocations()}
                             hoveredSession={hover.sessionID}
                             onHoverSession={(sessionID) => setHover("sessionID", sessionID)}
@@ -470,23 +560,175 @@ function HomeSessionSearchResultRow(
 }
 
 function HomeSessionGroupHeader(props: {
+  groupKey: string
   title: string
   titleOpacity: number
   onSetRef: (element: HTMLDivElement) => void
   elevated?: boolean
+  group: HomeUserGroup | undefined
+  language: HomeSessionsViewProps["language"]
+  rowUI: HomeSessionRowUI
+  setRowUI: SetStoreFunction<HomeSessionRowUI>
+  first: boolean
+  last: boolean
+  onRename: (groupID: string) => void
+  onSaveRename: (groupID: string, title: string) => void
+  onMove: (groupID: string, offset: -1 | 1) => void
+  onDelete: (groupID: string) => void
+  drop: { onDragOver: (event: DragEvent) => void; onDrop: (event: DragEvent) => void }
 }) {
+  const id = () => props.group?.id
+  let header: HTMLDivElement | undefined
+  // Index keeps header elements by position, so a reordered group lands on another element; the scroll
+  // controller keys header offsets by group, so the element must be registered again under its new group.
+  createEffect(
+    on(
+      () => props.groupKey,
+      () => {
+        if (header) props.onSetRef(header)
+      },
+      { defer: true },
+    ),
+  )
+  const menu = () => (props.rowUI.groupMenu?.id === id() ? props.rowUI.groupMenu : undefined)
+  const editor = () => (props.rowUI.groupEditor?.id === id() ? props.rowUI.groupEditor : undefined)
+  const titleButton = () =>
+    document.querySelector<HTMLButtonElement>(`[data-component="home-session-group-title"][data-group-id="${id()}"]`)
+
+  const openMenu = (element: HTMLElement, clientX: number, clientY: number) => {
+    const groupID = id()
+    if (!groupID) return
+    const bounds = element.getBoundingClientRect()
+    props.setRowUI("groupMenu", { id: groupID, x: clientX - bounds.left, y: clientY - bounds.top })
+  }
+  const closeEditor = (save: boolean) => {
+    const current = editor()
+    if (!current) return
+    if (save && current.draft.trim()) props.onSaveRename(current.id, current.draft.trim())
+    props.setRowUI("groupEditor", undefined)
+  }
+
   return (
     <div
-      ref={props.onSetRef}
+      ref={(element) => {
+        header = element
+        props.onSetRef(element)
+      }}
       class={`
-        pointer-events-none sticky top-[68px] flex h-7 min-w-0 items-center justify-between
+        sticky top-[68px] flex h-7 min-w-0 items-center justify-between
         bg-v2-background-bg-base ps-1.5 md:ps-3 md:top-[84px] lg:top-[108px]
       `}
-      classList={{ "home-session-group-header z-[5]": !!props.elevated, "z-10": !props.elevated }}
+      classList={{
+        "home-session-group-header z-[5]": !!props.elevated,
+        "z-10": !props.elevated,
+        "pointer-events-none": !props.group && !props.rowUI.dragging,
+      }}
+      {...props.drop}
     >
-      <div class={HOME_SECTION_LABEL} style={{ opacity: props.titleOpacity }}>
-        {props.title}
-      </div>
+      <Show
+        when={props.group}
+        fallback={
+          <div class={HOME_SECTION_LABEL} style={{ opacity: props.titleOpacity }}>
+            {props.title}
+          </div>
+        }
+      >
+        <Show
+          when={!editor()}
+          fallback={
+            <InlineInput
+              data-component="home-session-group-rename"
+              data-group-id={id()}
+              aria-label={props.language.t("common.rename")}
+              value={editor()?.draft ?? ""}
+              class={`${HOME_SECTION_LABEL} min-w-0 flex-1 outline-none`}
+              style={{ "--inline-input-shadow": "none", "text-align": "start" }}
+              onInput={(event) => {
+                const draft = event.currentTarget.value
+                props.setRowUI("groupEditor", (value) => (value?.id === id() ? { ...value, draft } : value))
+              }}
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                if (event.isComposing || event.keyCode === 229) return
+                if (event.key !== "Enter" && event.key !== "Escape") return
+                event.preventDefault()
+                closeEditor(event.key === "Enter")
+                requestAnimationFrame(() => titleButton()?.focus())
+              }}
+              onBlur={() => closeEditor(true)}
+            />
+          }
+        >
+          <button
+            type="button"
+            data-component="home-session-group-title"
+            data-group-id={id()}
+            aria-haspopup="menu"
+            aria-expanded={!!menu()}
+            class={`${HOME_SECTION_LABEL} cursor-default rounded-sm border-0 bg-transparent p-0 text-start focus-visible:outline-none focus-visible:bg-v2-overlay-simple-overlay-hover`}
+            style={{ opacity: props.titleOpacity }}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              openMenu(event.currentTarget, event.clientX, event.clientY)
+            }}
+            onDblClick={() => {
+              const groupID = id()
+              if (groupID) props.onRename(groupID)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "F2") {
+                event.preventDefault()
+                const groupID = id()
+                if (groupID) props.onRename(groupID)
+                return
+              }
+              if (event.key !== "ContextMenu" && (event.key !== "F10" || !event.shiftKey)) return
+              event.preventDefault()
+              const bounds = event.currentTarget.getBoundingClientRect()
+              openMenu(event.currentTarget, bounds.left + 12, bounds.bottom)
+            }}
+          >
+            {props.title}
+          </button>
+        </Show>
+        <Menu
+          modal={false}
+          placement="bottom-start"
+          gutter={2}
+          open={!!menu()}
+          onOpenChange={(open) => {
+            if (!open) props.setRowUI("groupMenu", undefined)
+          }}
+        >
+          <Menu.Trigger
+            as="span"
+            aria-hidden="true"
+            tabIndex={-1}
+            class="pointer-events-none absolute size-px"
+            style={{ left: `${menu()?.x ?? 0}px`, top: `${menu()?.y ?? 0}px` }}
+          />
+          <Menu.Portal>
+            <Menu.Content
+              onCloseAutoFocus={(event) => {
+                event.preventDefault()
+                if (!editor()) requestAnimationFrame(() => titleButton()?.focus())
+              }}
+            >
+              <Menu.Item onSelect={() => props.onRename(id()!)}>{props.language.t("common.rename")}</Menu.Item>
+              <Menu.Item disabled={props.first} onSelect={() => props.onMove(id()!, -1)}>
+                {props.language.t("home.sessions.group.moveUp")}
+              </Menu.Item>
+              <Menu.Item disabled={props.last} onSelect={() => props.onMove(id()!, 1)}>
+                {props.language.t("home.sessions.group.moveDown")}
+              </Menu.Item>
+              <Menu.Separator />
+              <Menu.Item onSelect={() => props.onDelete(id()!)}>
+                {props.language.t("home.sessions.group.delete")}
+              </Menu.Item>
+            </Menu.Content>
+          </Menu.Portal>
+        </Menu>
+      </Show>
     </div>
   )
 }
@@ -499,6 +741,8 @@ function HomeSessionRow(
     showLocations: boolean
     hoveredSession: string | undefined
     onHoverSession: (sessionID: string | undefined) => void
+    onEndDrag: () => void
+    onStartGroupRename: (groupID: string | undefined) => void
   },
 ) {
   const title = createMemo(() => sessionLabel(props.record.session))
@@ -583,6 +827,17 @@ function HomeSessionRow(
       data-project-name={!!showProjectName()}
       data-session-id={props.record.session.id}
       class="group/session relative flex h-10 min-w-0 items-center rounded-[6px] outline-none focus:outline-none focus-visible:outline-none"
+      classList={{ "opacity-60": props.rowUI.dragging === sessionID() }}
+      draggable={!editor()}
+      onDragStart={(event) => {
+        event.dataTransfer?.setData("text/plain", sessionID())
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+        // Chrome cancels a drag whose source moves during dragstart, and showing the new-group drop
+        // zone shifts every row, so the drag state lands a frame later.
+        const id = sessionID()
+        requestAnimationFrame(() => props.setRowUI("dragging", id))
+      }}
+      onDragEnd={props.onEndDrag}
       onContextMenu={(event) => {
         // While renaming, keep the native menu so paste and spelling work.
         if (editor()) return
@@ -780,6 +1035,36 @@ function HomeSessionRow(
             }}
           >
             <Menu.Item onSelect={openEditor}>{props.language.t("common.rename")}</Menu.Item>
+            <Menu.Sub gutter={0} overlap>
+              <Menu.SubTrigger data-action="home-session-move-to-group">
+                {props.language.t("home.sessions.group.moveTo")}
+              </Menu.SubTrigger>
+              <Menu.Portal>
+                <Menu.SubContent>
+                  <For each={props.userGroups}>
+                    {(group) => (
+                      <Menu.Item
+                        disabled={props.groupOf(sessionID())?.id === group.id}
+                        onSelect={() => props.onAssignGroup(sessionID(), group.id)}
+                      >
+                        {group.title}
+                      </Menu.Item>
+                    )}
+                  </For>
+                  <Show when={props.userGroups.length > 0}>
+                    <Menu.Separator />
+                  </Show>
+                  <Menu.Item onSelect={() => props.onStartGroupRename(props.onCreateGroup(sessionID()))}>
+                    {props.language.t("home.sessions.group.newWith")}
+                  </Menu.Item>
+                  <Show when={props.groupOf(sessionID())}>
+                    <Menu.Item onSelect={() => props.onAssignGroup(sessionID(), undefined)}>
+                      {props.language.t("home.sessions.group.ungroup")}
+                    </Menu.Item>
+                  </Show>
+                </Menu.SubContent>
+              </Menu.Portal>
+            </Menu.Sub>
             <Menu.Item onSelect={() => void props.onExportSession(props.server, props.record.session)}>
               {props.language.t("common.export")}…
             </Menu.Item>

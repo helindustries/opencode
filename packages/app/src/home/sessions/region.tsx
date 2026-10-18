@@ -52,6 +52,13 @@ export function HomeSessions(props: {
           onSearchSelectActive={props.search.result.selectActive}
           onSearchHighlight={props.search.result.highlight}
           onSearchSelect={props.search.result.select}
+          userGroups={props.sessions.group.list()}
+          groupOf={props.sessions.group.of}
+          onAssignGroup={props.sessions.group.assign}
+          onCreateGroup={props.sessions.group.create}
+          onRenameGroup={props.sessions.group.rename}
+          onMoveGroup={props.sessions.group.move}
+          onDeleteGroup={props.sessions.group.remove}
         />
       )}
     </Show>
