@@ -5,6 +5,7 @@ import { Rpc } from "./rpc.js"
 import { optional } from "./schema.js"
 
 export const Harness = "opencode"
+export const PluginID = "opencode.remote-control"
 
 // Mirrors ocmesh/protocol.py, the single source of truth for the record's JSON shape.
 export interface Record extends Schema.Schema.Type<typeof Record> {}

@@ -7,6 +7,15 @@ import { APP_READY_TIMEOUT, expectAppVisible } from "../utils/waits"
 
 test.use({ serviceWorkers: "block" })
 
+const remoteControlPlugin = [
+  {
+    id: "opencode.remote-control",
+    source: { type: "path" },
+    features: { server: true, tui: true },
+    state: { status: "active" },
+  },
+]
+
 const row = (page: Page, title: string) =>
   page.locator('[data-component="home-session-row"]').filter({ hasText: title })
 
@@ -160,6 +169,7 @@ test("sessions shared by other machines list as connected and past, and past one
     mesh: { url: "http://127.0.0.1:47613", reachable: true, node_id: "node-a", error: null },
   }
   await openHome(page, {
+    plugins: remoteControlPlugin,
     rpc: ({ rpcID, method, input }) => {
       if (rpcID !== "rc") return undefined
       if (method === "status") return status
@@ -190,6 +200,19 @@ test("sessions shared by other machines list as connected and past, and past one
   expect(revoked).toEqual([{ origin_host: "opencode@node-b", session_id: "ses_old" }])
 })
 
+test("Home makes no remote-control calls to a server without the plugin", async ({ page }) => {
+  const calls: string[] = []
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/rpc/")) calls.push(request.url())
+  })
+  const listed = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/plugin")
+  await openHome(page)
+  await listed
+  await expect(row(page, fixture.expected.targetTitle)).toBeVisible()
+  await expect(page.getByRole("region", { name: "Shared from other machines" })).toHaveCount(0)
+  expect(calls).toEqual([])
+})
+
 test("a notify-only server lists shared sessions without opening them", async ({ page }) => {
   const now = Date.now()
   const opened: string[] = []
@@ -197,6 +220,7 @@ test("a notify-only server lists shared sessions without opening them", async ({
     if (request.url().startsWith("http://192.168.1.9:4096")) opened.push(request.url())
   })
   await openHome(page, {
+    plugins: remoteControlPlugin,
     rpc: ({ method }) =>
       method === "status"
         ? {

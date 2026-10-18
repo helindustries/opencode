@@ -26,19 +26,26 @@ export function createMeshFeed(home: HomeController) {
   // mesh may carry it too, but their registry is the same mesh seen from elsewhere.
   const host = createMemo(() => servers.visible.find((conn) => ServerConnection.local(conn)) ?? home.server.focused())
 
-  const client = createMemo(() => {
+  const api = createMemo(() => {
     const conn = host()
 
-    return conn ? global.ensureServerCtx(conn).sdk.api.rpc(RemoteControl.Definition) : undefined
+    return conn ? global.ensureServerCtx(conn).sdk.api : undefined
   })
 
+  const client = createMemo(() => api()?.rpc(RemoteControl.Definition))
+
   createEffect(() => {
+    const server = api()
     const rc = client()
 
-    if (!rc) return
+    if (!server || !rc) return
 
+    // A server without the plugin answers every rc call with an error the browser logs, so the plugin list
+    // decides first; listing plugins also starts this location's plugin instance.
     const refresh = async () => {
-      const status = await rc.status(undefined).catch(() => undefined)
+      const plugins = await server.plugin.list().catch(() => undefined)
+      const loaded = plugins?.data.some((plugin) => plugin.id === RemoteControl.PluginID) ?? false
+      const status = loaded ? await rc.status(undefined).catch(() => undefined) : undefined
       const records = status ? await rc["sessions.list"]({}).catch(() => []) : []
       setState("status", reconcile(status))
       setState("records", reconcile(records, { key: "session_id" }))
