@@ -5,13 +5,13 @@ import { optional } from "../schema.js"
 
 export const DefaultMeshURL = "http://127.0.0.1:47613"
 
-// Options of the remote-control plugin entry: `plugins: [{ package, options: <Info> }]`.
+// The remote_control section of opencode.json.
 export class Info extends Schema.Class<Info>("Config.RemoteControl")({
   enabled: Schema.Boolean.pipe(optional).annotate({
-    description: "Turn the plugin off without removing it. Default true.",
+    description: "Turn remote control off. Default true.",
   }),
   mesh_url: Schema.String.pipe(optional).annotate({
-    description: `Base URL of the ocmesh loopback API. Default ${DefaultMeshURL}.`,
+    description: `Base URL of the mesh node's loopback API (opencode mesh run). Default ${DefaultMeshURL}.`,
   }),
   publish: Schema.Boolean.pipe(optional).annotate({
     description: "While remote control is on, share every session of this server, not only /rc ones.",

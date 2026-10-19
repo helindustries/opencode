@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import plugin, { peerAddress } from "../server.ts"
-import { fakeContext, fakeMesh, until } from "./fixture.ts"
+import plugin, { peerAddress } from "@opencode/core/plugin/remote-control/server"
+import { fakeContext, fakeMesh, until } from "./fixture"
 
 const password = "s3cret"
 let saved: string | undefined
@@ -113,8 +113,8 @@ describe("server plugin", () => {
   test("targets are validated and handed to the mesh as peers", async () => {
     const run = await start()
     expect(await run.call("share.start", { target: "bad host!" })).toMatchObject({ type: "invalid_target" })
-    await run.call("share.start", { target: "192.168.1.2" })
-    expect(run.mesh.peers).toEqual(["192.168.1.2:47614"])
+    await run.call("share.start", { target: "192.0.2.2" })
+    expect(run.mesh.peers).toEqual(["192.0.2.2:47614"])
   })
 
   test("an unreachable mesh is reported, not thrown", async () => {
@@ -134,8 +134,8 @@ describe("server plugin", () => {
 })
 
 test.each([
-  ["192.168.1.2", "192.168.1.2:47614"],
-  ["tyr.local:5000", "tyr.local:5000"],
+  ["192.0.2.2", "192.0.2.2:47614"],
+  ["node.local:5000", "node.local:5000"],
   ["[fe80::1]:47614", "[fe80::1]:47614"],
   ["bad host!", null],
   ["", null],

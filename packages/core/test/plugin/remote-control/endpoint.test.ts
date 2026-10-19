@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test"
 import { mkdtemp, mkdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { authBlob, own } from "../endpoint.ts"
+import { authBlob, own } from "@opencode/core/plugin/remote-control/endpoint"
 
 const keys = ["XDG_STATE_HOME", "OPENCODE_PASSWORD", "OPENCODE_SERVER_PASSWORD"] as const
 let saved: Record<string, string | undefined> = {}
@@ -43,7 +43,7 @@ test("no registration and no override means not attachable", async () => {
 test("server_url overrides discovery and takes the password from the environment", async () => {
   await register({ url: "http://127.0.0.1:45278", pid: process.pid, password: "pw" })
   process.env["OPENCODE_SERVER_PASSWORD"] = "legacy"
-  expect(await own("http://192.168.1.4:4096")).toEqual({ url: "http://192.168.1.4:4096", password: "legacy" })
+  expect(await own("http://192.0.2.4:4096")).toEqual({ url: "http://192.0.2.4:4096", password: "legacy" })
 })
 
 test("auth blobs are basic-auth tokens, empty without a password", () => {

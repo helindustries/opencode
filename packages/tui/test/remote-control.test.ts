@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import type { Plugin } from "@opencode/plugin/tui"
 import type { RemoteControl } from "@opencode/schema/remote-control"
-import tui from "../tui.tsx"
+import tui from "../src/feature-plugins/system/remote-control"
 
 const idle: RemoteControl.Status = {
   active: false,
@@ -111,16 +111,16 @@ test("an unshared open session can be added from the menu", async () => {
 
 test("/rc <host> syncs with that machine", async () => {
   const run = await rc({})
-  await run.run("192.168.1.2")
-  expect(run.calls).toEqual([["share.start", { session_id: undefined, target: "192.168.1.2", client_hint: "tui" }]])
-  expect(run.toasts.at(-1)).toMatchObject({ variant: "success", message: "Syncing with 192.168.1.2" })
+  await run.run("192.0.2.2")
+  expect(run.calls).toEqual([["share.start", { session_id: undefined, target: "192.0.2.2", client_hint: "tui" }]])
+  expect(run.toasts.at(-1)).toMatchObject({ variant: "success", message: "Syncing with 192.0.2.2" })
 })
 
 test("/rc <host> for the machine already synced says so", async () => {
-  const run = await rc({ status: { ...idle, active: true, target: "192.168.1.2:47614" } })
-  await run.run("192.168.1.2")
+  const run = await rc({ status: { ...idle, active: true, target: "192.0.2.2:47614" } })
+  await run.run("192.0.2.2")
   expect(run.calls).toEqual([])
-  expect(run.toasts.at(-1)).toMatchObject({ variant: "warning", message: "Already connected to 192.168.1.2:47614" })
+  expect(run.toasts.at(-1)).toMatchObject({ variant: "warning", message: "Already connected to 192.0.2.2:47614" })
 })
 
 test("failures surface their reason", async () => {
@@ -138,5 +138,5 @@ test("failures surface their reason", async () => {
   const missing = await rc({ status: new Error("rpc.method_not_found") })
   await missing.run("")
   expect(missing.toasts.at(-1)).toMatchObject({ variant: "error" })
-  expect(missing.toasts.at(-1)!.message).toContain("Plugin unavailable")
+  expect(missing.toasts.at(-1)!.message).toContain("Remote control unavailable")
 })

@@ -59,7 +59,7 @@ export function createMeshController(home: HomeController, feed: MeshFeed) {
       if (!result) return showToast({ variant: "error", title: language.t("home.mesh.forget.failed") })
       await feed.refresh()
     },
-    // The rename goes to the sharing server itself; its plugin republishes the new title.
+    // The rename goes to the sharing server itself; its remote control republishes the new title.
     async rename(record: MeshRecord, title: string) {
       const renamed = await createApiForServer({ server: http(record) })
         .session.update({ sessionID: record.session_id, title })

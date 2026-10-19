@@ -17,6 +17,7 @@ import { ConfigPlugin } from "./config/plugin.js"
 import { ConfigPolicy } from "./config/policy.js"
 import { ConfigProvider } from "./config/provider.js"
 import { ConfigReference } from "./config/reference.js"
+import { ConfigRemoteControl } from "./config/remote-control.js"
 import { ConfigWebSearch } from "./config/websearch.js"
 import { ConfigToolOutput } from "./config/tool-output.js"
 import { ConfigWatcher } from "./config/watcher.js"
@@ -108,6 +109,9 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   }),
   warming: ConfigWarming.Warming.pipe(optional).annotate({
     description: "Keep recently active sessions warm with transient model requests (default: false)",
+  }),
+  remote_control: ConfigRemoteControl.Info.pipe(optional).annotate({
+    description: "Share sessions with your other machines through the LAN mesh (opencode mesh run)",
   }),
   providers: Schema.Record(Schema.String, ConfigProvider.Info).pipe(optional),
   experimental: ConfigExperimental.Info.pipe(optional),

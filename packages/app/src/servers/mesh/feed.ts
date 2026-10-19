@@ -5,7 +5,7 @@ import type { HomeController } from "@/home/model"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { useGlobal } from "@/runtime/server/runtime"
 
-// The plugin heartbeats every 60s; three missed beats is "no longer connected".
+// Remote control re-publishes shared sessions every 60s; three missed beats is "no longer connected".
 export const connectedWindow = 3 * 60_000
 
 const clockInterval = 30_000
@@ -22,8 +22,8 @@ export function createMeshFeed(home: HomeController) {
     now: number
   }>({ status: undefined, records: [], now: Date.now() })
 
-  // The remote-control plugin runs on this machine's own server; remote servers attached from the
-  // mesh may carry it too, but their registry is the same mesh seen from elsewhere.
+  // Remote control runs in this machine's own server; remote servers attached from the mesh carry it
+  // too, but their registry is the same mesh seen from elsewhere.
   const host = createMemo(() => servers.visible.find((conn) => ServerConnection.local(conn)) ?? home.server.focused())
 
   const api = createMemo(() => {
@@ -40,8 +40,9 @@ export function createMeshFeed(home: HomeController) {
 
     if (!server || !rc) return
 
-    // A server without the plugin answers every rc call with an error the browser logs, so the plugin list
-    // decides first; listing plugins also starts this location's plugin instance.
+    // A server without remote control (an upstream opencode) answers every rc call with an error the
+    // browser logs, so the plugin list decides first; listing plugins also starts this location's
+    // remote control instance.
     const refresh = async () => {
       const plugins = await server.plugin.list().catch(() => undefined)
       const loaded = plugins?.data.some((plugin) => plugin.id === RemoteControl.PluginID) ?? false

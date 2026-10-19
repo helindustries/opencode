@@ -2,8 +2,8 @@ import { userInfo } from "node:os"
 import { Plugin } from "@opencode/plugin"
 import { ConfigRemoteControl } from "@opencode/schema/config/remote-control"
 import { RemoteControl } from "@opencode/schema/remote-control"
-import { authBlob, own } from "./endpoint.ts"
-import { create, MeshRejected, MeshUnreachable, type Mesh } from "./mesh.ts"
+import { authBlob, own } from "./endpoint.js"
+import { create, MeshRejected, MeshUnreachable, type Mesh } from "./mesh.js"
 
 const heartbeatInterval = 60_000
 const pingDeadline = 5_000

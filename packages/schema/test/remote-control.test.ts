@@ -9,8 +9,8 @@ describe("Config.RemoteControl", () => {
       mesh_url: "http://127.0.0.1:47613",
       publish: true,
       project_filter: ["global", "/work"],
-      client_name: "paul",
-      server_url: "http://192.168.1.4:45278",
+      client_name: "ada",
+      server_url: "http://192.0.2.4:45278",
       desktop: "notify",
     } as const
     expect({ ...ConfigRemoteControl.decode(options) }).toEqual(options)
@@ -23,16 +23,11 @@ describe("Config.RemoteControl", () => {
     expect(() => ConfigRemoteControl.decode({ publish: "yes" })).toThrow(/publish/)
   })
 
-  test("the published config schema types remote-control plugin options", async () => {
+  test("the published config schema has a typed remote_control section", async () => {
     const schema = await generate()
-    const entry = schema.$defs["Config.Plugin.EntryEncoded"] as { allOf: unknown[] }
-    expect(entry.allOf).toContainEqual({
-      if: { properties: { package: { pattern: "remote-control" } }, required: ["package"] },
-      then: { properties: { options: { $ref: "#/$defs/Config.RemoteControl" } } },
-    })
-    const options = schema.$defs["Config.RemoteControl"] as {
+    const options = schema.properties["remote_control"] as {
       additionalProperties: boolean
-      properties: Record<string, { description?: string }>
+      properties: Record<string, unknown>
     }
     expect(options.additionalProperties).toBe(false)
     expect(Object.keys(options.properties).sort()).toEqual([
@@ -44,6 +39,5 @@ describe("Config.RemoteControl", () => {
       "publish",
       "server_url",
     ])
-    expect(options.properties["mesh_url"]?.description).toContain("47613")
   })
 })

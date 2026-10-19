@@ -577,29 +577,6 @@
         "@opencode/plugin": "^2.0.27 || ^0.0.0-dev",
       },
     },
-    "packages/plugins/remote-control": {
-      "name": "@opencode/plugin-remote-control",
-      "version": "2.0.32",
-      "dependencies": {
-        "@opencode/plugin": "workspace:*",
-        "@opencode/schema": "workspace:*",
-        "effect": "catalog:",
-      },
-      "devDependencies": {
-        "@opentui/core": "catalog:",
-        "@opentui/solid": "catalog:",
-        "@tsconfig/bun": "catalog:",
-        "@types/bun": "catalog:",
-        "@typescript/native": "catalog:",
-        "solid-js": "catalog:",
-        "typescript": "catalog:",
-      },
-      "peerDependencies": {
-        "@opentui/core": ">=0.5.17",
-        "@opentui/solid": ">=0.5.17",
-        "solid-js": ">=1.9.0",
-      },
-    },
     "packages/posts": {
       "name": "@opencode/posts",
       "dependencies": {
@@ -2076,8 +2053,6 @@
     "@opencode/plugin-browser": ["@opencode/plugin-browser@workspace:packages/plugin-browser"],
 
     "@opencode/plugin-figma": ["@opencode/plugin-figma@workspace:packages/plugins/figma"],
-
-    "@opencode/plugin-remote-control": ["@opencode/plugin-remote-control@workspace:packages/plugins/remote-control"],
 
     "@opencode/posts": ["@opencode/posts@workspace:packages/posts"],
 

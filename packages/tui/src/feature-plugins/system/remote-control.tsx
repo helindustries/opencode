@@ -31,7 +31,7 @@ export default Plugin.define({
       const route = context.ui.router.current()
       const sessionID = route.type === "session" ? route.sessionID : undefined
       const current = await rc.status(undefined).catch((error: Error) => error)
-      if (current instanceof Error) return toast("error", `Plugin unavailable on this server: ${current.message}`)
+      if (current instanceof Error) return toast("error", `Remote control unavailable on this server: ${current.message}`)
       setStatus(current)
       if (!current.mesh.reachable) return toast("error", `Mesh unreachable at ${current.mesh.url}`)
       if (target && current.active && current.target?.split(":")[0] === target.split(":")[0])
