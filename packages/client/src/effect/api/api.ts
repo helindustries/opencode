@@ -1726,6 +1726,16 @@ export type PermissionSavedListOperation<E = never> = (
   input?: PermissionSavedListInput,
 ) => Effect.Effect<PermissionSavedListOutput, E>
 
+export type PermissionSavedUpdateInput = {
+  readonly id: PermissionSaved.ID
+  readonly action?: string | undefined
+  readonly resource?: string | undefined
+}
+export type PermissionSavedUpdateOutput = PermissionSaved.Info
+export type PermissionSavedUpdateOperation<E = never> = (
+  input: PermissionSavedUpdateInput,
+) => Effect.Effect<PermissionSavedUpdateOutput, E>
+
 export type PermissionSavedRemoveInput = { readonly id: PermissionSaved.ID }
 export type PermissionSavedRemoveOutput = void
 export type PermissionSavedRemoveOperation<E = never> = (
@@ -1768,7 +1778,11 @@ export type PermissionReplyOperation<E = never> = (
 
 export interface PermissionApi<E = never> {
   readonly request: { readonly list: PermissionRequestListOperation<E> }
-  readonly saved: { readonly list: PermissionSavedListOperation<E>; readonly remove: PermissionSavedRemoveOperation<E> }
+  readonly saved: {
+    readonly list: PermissionSavedListOperation<E>
+    readonly update: PermissionSavedUpdateOperation<E>
+    readonly remove: PermissionSavedRemoveOperation<E>
+  }
   readonly create: PermissionCreateOperation<E>
   readonly list: PermissionListOperation<E>
   readonly get: PermissionGetOperation<E>
