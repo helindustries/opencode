@@ -7,12 +7,16 @@ import path from "node:path"
 
 export const defaultPort = 47613
 export const defaultPeerPort = 47614
+export const defaultInternalPort = 47615
 export const tlsModes = ["mutual", "off"] as const
 export const configEnv = "OCMESH_CONFIG"
 
 export type MeshConfig = {
   port: number
   peerPort: number
+  // Loopback port the peer port forwards decrypted requests to. Fixed rather than ephemeral so a
+  // sandbox that names every port it allows can admit it.
+  internalPort: number
   bind: string
   storageDir: string
   peers: string[]
@@ -34,6 +38,7 @@ export function defaultConfig(): MeshConfig {
   return {
     port: defaultPort,
     peerPort: defaultPeerPort,
+    internalPort: defaultInternalPort,
     bind: "0.0.0.0",
     storageDir: defaultStorageDir(),
     peers: [],
@@ -73,6 +78,7 @@ export async function loadConfig(file?: string): Promise<MeshConfig> {
   return {
     port: typed(table, "port", "integer", defaults.port) as number,
     peerPort: typed(table, "peer_port", "integer", defaults.peerPort) as number,
+    internalPort: typed(table, "internal_port", "integer", defaults.internalPort) as number,
     bind: typed(table, "bind", "string", defaults.bind) as string,
     storageDir: storage.startsWith("~") ? path.join(os.homedir(), storage.slice(1)) : storage,
     peers: peers as string[],

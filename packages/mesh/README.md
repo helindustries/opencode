@@ -26,6 +26,7 @@ sync carries the trust bundle along, so a third node trusted by either side is t
 ```toml
 port = 47613          # loopback API for opencode and the CLI
 peer_port = 47614     # mutual-TLS API for other nodes
+internal_port = 47615 # loopback port the peer port forwards decrypted requests to
 bind = "0.0.0.0"
 storage_dir = "..."   # default: %LOCALAPPDATA%\ocmesh on Windows, ~/.local/share/ocmesh elsewhere
 peers = ["192.0.2.10:47614"]

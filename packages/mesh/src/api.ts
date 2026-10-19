@@ -175,6 +175,7 @@ type Forwarded = { nodeID: string; address: string }
 export function servePeers(input: {
   bind: string
   port: number
+  internalPort: number
   handshakeTimeoutMs: number
   tlsOptions: () => tls.SecureContextOptions
   route: ReturnType<typeof createRouter>
@@ -182,7 +183,7 @@ export function servePeers(input: {
   const forwarded = new Map<number, Forwarded>()
   const internal = Bun.serve({
     hostname: "127.0.0.1",
-    port: 0,
+    port: input.internalPort,
     idleTimeout: 0,
     fetch(request, server) {
       const peer = forwarded.get(server.requestIP(request)?.port ?? -1)

@@ -65,7 +65,17 @@ export function record(sessionID = "ses_1", fields: Record<string, unknown> = {}
 }
 
 export function config(storageDir: string, fields: Partial<MeshConfig> = {}): MeshConfig {
-  return { ...defaultConfig(), port: 0, peerPort: 0, bind: "127.0.0.1", storageDir, nodeName: "test", tls: "off", ...fields }
+  return {
+    ...defaultConfig(),
+    port: 0,
+    peerPort: 0,
+    internalPort: 0,
+    bind: "127.0.0.1",
+    storageDir,
+    nodeName: "test",
+    tls: "off",
+    ...fields,
+  }
 }
 
 // Mesh nodes named after their loopback address, all on one peer port the way machines on a LAN

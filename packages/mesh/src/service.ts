@@ -28,6 +28,7 @@ export class MeshService {
     const lan = await servePeers({
       bind: config.bind,
       port: config.peerPort,
+      internalPort: config.internalPort,
       handshakeTimeoutMs: config.quiet ? quietHandshakeTimeoutMs : handshakeTimeoutMs,
       tlsOptions: () => node.identity.tlsOptions(),
       route,
