@@ -85,6 +85,10 @@ const getBase = (appId: string): Configuration => {
     // https://www.electron.build/docs/linux/
     extraMetadata: {
       desktopName: `${appId}.desktop`,
+      // electron-updater compares app.getVersion(), which a fork build would otherwise leave at upstream's.
+      ...(process.env.OPENCODE_RELEASES && process.env.OPENCODE_VERSION
+        ? { version: process.env.OPENCODE_VERSION }
+        : {}),
     },
     files: [
       "out/**/*",
@@ -251,7 +255,9 @@ export function getConfig() {
         protocols: { name: "OpenCode", schemes: ["opencode"] },
         publish: {
           provider: "generic",
-          url: "https://opencode.ai/update/api/latest/desktop/opencode/",
+          url: process.env.OPENCODE_RELEASES
+            ? `${process.env.OPENCODE_RELEASES.replace(/\/+$/, "")}/latest/download/`
+            : "https://opencode.ai/update/api/latest/desktop/opencode/",
           channel: "latest",
         },
         deb: { fpm: [metainfoFpm(appId), legacyDesktopEntryFpm] },

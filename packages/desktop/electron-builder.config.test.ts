@@ -62,6 +62,25 @@ test.each(channels)("channel identity for $channel", ({ channel, appId }) => {
   }
 })
 
+test("a fork build updates from its own releases and carries its own version", () => {
+  const upstream = load("prod")
+  expect(upstream.publish).toMatchObject({ url: "https://opencode.ai/update/api/latest/desktop/opencode/" })
+  expect(upstream.extraMetadata?.version).toBeUndefined()
+  process.env.OPENCODE_RELEASES = "https://github.com/example/opencode/releases/"
+  process.env.OPENCODE_VERSION = "2.0.32-fork.4"
+  try {
+    const fork = load("prod")
+    expect(fork.publish).toMatchObject({
+      provider: "generic",
+      url: "https://github.com/example/opencode/releases/latest/download/",
+    })
+    expect(fork.extraMetadata?.version).toBe("2.0.32-fork.4")
+  } finally {
+    delete process.env.OPENCODE_RELEASES
+    delete process.env.OPENCODE_VERSION
+  }
+})
+
 test("legacy Linux launcher stays hidden", async () => {
   const desktop = await Bun.file(path.join(import.meta.dirname, "resources/linux/opencode-desktop.desktop")).text()
   expect(desktop).toContain("Exec=/opt/OpenCode/ai.opencode.desktop %U")
