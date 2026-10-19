@@ -10,15 +10,15 @@ import { createHomeSessionSearchController } from "./sessions/search"
 import { createHomeSessionsController } from "./sessions/controller"
 import { HomeSessions } from "./sessions/region"
 import { createMeshController } from "@/servers/mesh/controller"
-import { createMeshFeed } from "@/servers/mesh/feed"
 import { MeshSessions } from "@/servers/mesh/region"
+import { useRemoteControl } from "@/shell/tabs/remote-control"
 
 export function Home() {
   const mobile = createMediaQuery("(max-width: 767px)")
   const home = createHomeController()
   const projects = createHomeProjectsController(home)
   const sessions = createHomeSessionsController(home)
-  const mesh = createMeshFeed(home)
+  const mesh = useRemoteControl().feed
   const meshController = createMeshController(home, mesh)
   const search = createHomeSessionSearchController(home, sessions)
   const scroll = createHomeScrollController(sessions.data.groups)

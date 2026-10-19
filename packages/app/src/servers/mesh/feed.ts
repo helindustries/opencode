@@ -1,7 +1,6 @@
 import { RemoteControl } from "@opencode/schema/remote-control"
 import { createEffect, createMemo, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
-import type { HomeController } from "@/home/model"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { useGlobal } from "@/runtime/server/runtime"
 
@@ -12,7 +11,7 @@ const clockInterval = 30_000
 
 export type MeshRecord = RemoteControl.Record
 
-export function createMeshFeed(home: HomeController) {
+export function createMeshFeed(fallback: () => ServerConnection.Any | undefined) {
   const global = useGlobal()
   const servers = useServers()
 
@@ -24,7 +23,7 @@ export function createMeshFeed(home: HomeController) {
 
   // Remote control runs in this machine's own server; remote servers attached from the mesh carry it
   // too, but their registry is the same mesh seen from elsewhere.
-  const host = createMemo(() => servers.visible.find((conn) => ServerConnection.local(conn)) ?? home.server.focused())
+  const host = createMemo(() => servers.visible.find((conn) => ServerConnection.local(conn)) ?? fallback())
 
   const api = createMemo(() => {
     const conn = host()
@@ -68,6 +67,8 @@ export function createMeshFeed(home: HomeController) {
 
   return {
     client,
+    host,
+    status: () => state.status,
     available: () => state.status !== undefined,
     connected: createMemo(() => supported().filter(connected)),
     past: createMemo(() => supported().filter((record) => !connected(record))),

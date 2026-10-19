@@ -15,6 +15,8 @@ import { LanguageProvider, UiI18nBridge, type Locale } from "@/runtime/i18n/lang
 import { ServerConnection, ServersProvider } from "@/runtime/server/registry"
 import { SettingsProvider } from "@/settings/model"
 import { TabsProvider } from "@/shell/tabs/tabs"
+import { RemoteControlProvider } from "@/shell/tabs/remote-control"
+import { TabGroupsProvider } from "@/shell/tabs/groups"
 import { ErrorPage } from "@/shell/errors/error"
 import { AppRoutes, File, preloadRoute } from "@/shell/routes/routes"
 import { ExtensionRoot } from "@/runtime/extension/root"
@@ -96,12 +98,16 @@ export function AppInterface(props: {
   const Root = (rootProps: ParentProps) => (
     <TabsProvider>
       <GlobalProvider>
-        <BodyTypography />
-        <CommandProvider>
-          <DesktopCommands />
-          {props.children}
-          {rootProps.children}
-        </CommandProvider>
+        <RemoteControlProvider>
+          <TabGroupsProvider>
+            <BodyTypography />
+            <CommandProvider>
+              <DesktopCommands />
+              {props.children}
+              {rootProps.children}
+            </CommandProvider>
+          </TabGroupsProvider>
+        </RemoteControlProvider>
       </GlobalProvider>
     </TabsProvider>
   )

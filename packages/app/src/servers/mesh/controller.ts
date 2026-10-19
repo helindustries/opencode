@@ -7,22 +7,27 @@ import { useGlobal } from "@/runtime/server/runtime"
 import { showToast } from "@/shell/notifications/toast"
 import type { MeshFeed, MeshRecord } from "./feed"
 
+const http = (record: MeshRecord) => ({
+  url: normalizeServerUrl(record.server_url) ?? record.server_url,
+  password: authFromToken(record.auth_blob)?.password,
+})
+
+export const meshConnection = (
+  record: MeshRecord,
+  language: ReturnType<typeof useLanguage>,
+): ServerConnection.Http => ({
+  type: "http",
+  http: http(record),
+  displayName: language.t("home.mesh.owner", { user: record.origin_user, host: new URL(record.server_url).hostname }),
+})
+
 export function createMeshController(home: HomeController, feed: MeshFeed) {
   const language = useLanguage()
   const servers = useServers()
   const global = useGlobal()
   const checkHealth = useCheckServerHealth()
 
-  const http = (record: MeshRecord) => ({
-    url: normalizeServerUrl(record.server_url) ?? record.server_url,
-    password: authFromToken(record.auth_blob)?.password,
-  })
-
-  const connection = (record: MeshRecord): ServerConnection.Http => ({
-    type: "http",
-    http: http(record),
-    displayName: language.t("home.mesh.owner", { user: record.origin_user, host: new URL(record.server_url).hostname }),
-  })
+  const connection = (record: MeshRecord) => meshConnection(record, language)
 
   const failed = (key: Parameters<typeof language.t>[0], record: MeshRecord) =>
     showToast({ variant: "error", title: language.t(key, { server: record.server_url }) })

@@ -558,6 +558,8 @@ export const dict = {
   "session.view.select": "Session view",
   "session.tab.add": "Add tab",
   "session.tab.unknown": "Unknown Session",
+  "session.tab.shared": "Shared by remote control",
+  "session.tab.group.toggle": "{{title}}, {{count}} tabs",
   "session.panel.reviewAndFiles": "Review and files",
   "session.error.notFound": "This session cannot be found",
   "session.error.notFound.description": "This tab points to a session that no longer exists on this server.",

@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, Show, type Ref } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Ref } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Predicate } from "effect"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -21,6 +21,13 @@ import "./tab-nav.css"
 // MouseEvent.button uses 1 for the middle/wheel button.
 const MIDDLE_MOUSE_BUTTON = 1
 
+export type TabGrouping = {
+  groups: readonly { id: string; title: string }[]
+  current: string | undefined
+  assign: (groupID: string | undefined) => void
+  create: () => void
+}
+
 export function TabNavItem(props: {
   ref?: Ref<HTMLDivElement>
   href: string
@@ -39,6 +46,8 @@ export function TabNavItem(props: {
   pressed?: boolean
   hidden?: boolean
   orientation?: "horizontal" | "vertical"
+  shared?: boolean
+  grouping?: TabGrouping
 }) {
   const language = useLanguage()
   const [menu, setMenu] = createStore({ open: false, rename: false })
@@ -333,6 +342,17 @@ export function TabNavItem(props: {
             <span data-slot="tab-avatar-unread-dot" aria-hidden="true" />
           </Show>
         </span>
+        <Show when={props.shared}>
+          <span
+            data-slot="tab-shared"
+            role="img"
+            aria-label={language.t("session.tab.shared")}
+            title={language.t("session.tab.shared")}
+            class="flex shrink-0 items-center text-v2-text-text-muted"
+          >
+            <Icon name="share" size="small" />
+          </span>
+        </Show>
         <span
           ref={(el) => {
             titleEl = el
@@ -444,6 +464,35 @@ export function TabNavItem(props: {
           <Menu.Item disabled={!props.session || rename.isPending} onSelect={() => setMenu("rename", true)}>
             {language.t("common.rename")}
           </Menu.Item>
+          <Show when={props.grouping} keyed>
+            {(grouping) => (
+              <Menu.Sub gutter={0} overlap>
+                <Menu.SubTrigger data-action="tab-move-to-group">
+                  {language.t("home.sessions.group.moveTo")}
+                </Menu.SubTrigger>
+                <Menu.Portal>
+                  <Menu.SubContent>
+                    <For each={grouping.groups}>
+                      {(group) => (
+                        <Menu.Item disabled={grouping.current === group.id} onSelect={() => grouping.assign(group.id)}>
+                          {group.title}
+                        </Menu.Item>
+                      )}
+                    </For>
+                    <Show when={grouping.groups.length > 0}>
+                      <Menu.Separator />
+                    </Show>
+                    <Menu.Item onSelect={grouping.create}>{language.t("home.sessions.group.newWith")}</Menu.Item>
+                    <Show when={grouping.current}>
+                      <Menu.Item onSelect={() => grouping.assign(undefined)}>
+                        {language.t("home.sessions.group.ungroup")}
+                      </Menu.Item>
+                    </Show>
+                  </Menu.SubContent>
+                </Menu.Portal>
+              </Menu.Sub>
+            )}
+          </Show>
           <Menu.Item onSelect={props.onClose}>{language.t("common.closeTab")}</Menu.Item>
         </Menu.Context.Content>
       </Menu.Context.Portal>
