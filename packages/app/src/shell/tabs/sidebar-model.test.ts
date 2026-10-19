@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { groupAfterDrop, sharedSessions, tabSections } from "./sidebar-model"
+import { groupAfterDrop, sharedSessions, staleCredentials, tabSections } from "./sidebar-model"
 
 const work = { id: "work", title: "Work", members: ["c", "a"] }
 const idle = { id: "idle", title: "Idle", members: ["gone"] }
@@ -29,6 +29,16 @@ describe("groupAfterDrop", () => {
   test("a tab dropped after an ungrouped tab, or at the top, is ungrouped", () => {
     expect(groupAfterDrop(["b", "a", "c"], "a", [work])).toBeUndefined()
     expect(groupAfterDrop(["a", "b", "c"], "a", [work])).toBeUndefined()
+  })
+})
+
+describe("staleCredentials", () => {
+  test("a saved server whose password the share no longer carries is refreshed, others are left alone", () => {
+    const fresh = { http: { url: "http://192.0.2.4:4096", password: "new" } }
+    const same = { http: { url: "http://192.0.2.6:4096", password: "kept" } }
+    const unsaved = { http: { url: "http://192.0.2.9:4096", password: "any" } }
+    const saved = [{ http: { url: "http://192.0.2.4:4096", password: "old" } }, same]
+    expect(staleCredentials([fresh, same, unsaved], saved)).toEqual([fresh])
   })
 })
 

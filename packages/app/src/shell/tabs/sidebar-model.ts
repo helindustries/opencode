@@ -27,6 +27,18 @@ export function groupAfterDrop(order: readonly string[], moved: string, groups: 
   return previous === undefined ? undefined : groups.find((group) => group.members.includes(previous))?.id
 }
 
+export type ServerCredentials = { url: string; password?: string }
+
+/** The current connections whose saved server, at the same address, holds another password. */
+export function staleCredentials<TConnection extends { http: ServerCredentials }>(
+  current: readonly TConnection[],
+  saved: readonly { http: ServerCredentials }[],
+) {
+  return current.filter((conn) =>
+    saved.some((item) => item.http.url === conn.http.url && item.http.password !== conn.http.password),
+  )
+}
+
 export type SharedSession<TServer> = { id: string; server: TServer; sessionId: string }
 
 /** Every session shared through remote control, this machine's own first; `id` stays stable across restarts. */

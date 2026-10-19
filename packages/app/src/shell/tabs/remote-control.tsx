@@ -7,7 +7,7 @@ import { Persistence } from "@/runtime/persistence/schema"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { meshConnection } from "@/servers/mesh/controller"
 import { createMeshFeed } from "@/servers/mesh/feed"
-import { sharedSessions } from "./sidebar-model"
+import { sharedSessions, staleCredentials } from "./sidebar-model"
 import { useTabs } from "./tabs"
 
 const Opened = Persistence.struct({ keys: Persistence.array(Schema.String) })
@@ -34,6 +34,17 @@ export const { use: useRemoteControl, provider: RemoteControlProvider } = create
           .map((record) => ({ ...record, connection: meshConnection(record, language) })),
       }),
     )
+    // A sharing server picks a new password whenever it restarts and its record carries the current one, but a server
+    // saved for an earlier share keeps the password it was saved with; its tabs then show "Unknown Session".
+    createEffect(() => {
+      const remote = feed
+        .connected()
+        .filter(feed.attachable)
+        .map((record) => meshConnection(record, language))
+      const saved = servers.list.flatMap((conn) => (conn.type === "http" ? [conn] : []))
+
+      for (const conn of staleCredentials(remote, saved)) servers.add(conn)
+    })
     const keys = createMemo(
       () => new Set(shared().map((item) => `${ServerConnection.key(item.server)}\n${item.sessionId}`)),
     )
