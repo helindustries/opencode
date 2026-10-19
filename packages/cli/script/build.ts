@@ -193,6 +193,12 @@ export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sh
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_ARTIFACT: `'cli'`,
       ...(highlights ? { OPENCODE_RELEASE_HIGHLIGHTS: JSON.stringify(highlights) } : {}),
+      ...(process.env.OPENCODE_RELEASES
+        ? {
+            OPENCODE_RELEASES: JSON.stringify(process.env.OPENCODE_RELEASES),
+            OPENCODE_RELEASE_TARGET: JSON.stringify(target.replace(binary, "").replace(/^-/, "")),
+          }
+        : {}),
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "undefined",
       // FFF_LIBC selects the fff native lib variant: "musl" or "gnu".
       FFF_LIBC: item.os === "linux" ? `'${item.abi ?? "gnu"}'` : "undefined",

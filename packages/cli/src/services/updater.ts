@@ -1,11 +1,15 @@
 import { Global } from "@opencode/util/global"
 import { AppProcess } from "@opencode/util/process"
 import { EffectFlock } from "@opencode/util/effect-flock"
-import { OPENCODE_ARTIFACT, OPENCODE_CHANNEL, OPENCODE_LOCAL, OPENCODE_VERSION } from "../version"
+import { OPENCODE_ARTIFACT, OPENCODE_CHANNEL, OPENCODE_LOCAL, OPENCODE_RELEASES, OPENCODE_VERSION } from "../version"
 import { Context, Duration, Effect, FileSystem, Layer, Option, Ref, Schema } from "effect"
 import { ChildProcess } from "effect/process"
 import { parse, type ParseError } from "jsonc-parser"
+import { randomBytes } from "node:crypto"
+import { createWriteStream } from "node:fs"
 import path from "node:path"
+import { pipeline } from "node:stream/promises"
+import { createGunzip } from "node:zlib"
 import { stripVTControlCharacters } from "node:util"
 import { RetainedImage } from "./retained-image"
 import { action, parseReleaseVersion, type Policy } from "./updater-action"
@@ -136,7 +140,14 @@ export function decodePolicy(text: string): Policy | undefined {
   if (input.autoupdate === true) return "auto"
 }
 
+type Releases = NonNullable<typeof OPENCODE_RELEASES>
+
+export const ForkReleases = Context.Reference<Releases | undefined>("@opencode/cli/Updater/ForkReleases", {
+  defaultValue: () => OPENCODE_RELEASES,
+})
+
 const make = Effect.gen(function* () {
+  const releases = yield* ForkReleases
   const fs = yield* FileSystem.FileSystem
   const global = yield* Global.Service
   const appProcess = yield* AppProcess.Service
@@ -213,6 +224,8 @@ const make = Effect.gen(function* () {
 
   const method = Effect.fnUntraced(function* () {
     if (executable === curlBinary) return "curl"
+    // On Windows a fork installed from Cygwin sits in the Cygwin home, not os.homedir().
+    if (releases && path.basename(path.dirname(path.dirname(executable))) === ".opencode") return "curl"
     if (installedFormula) return "brew"
     if (installedWinget) return "winget"
     if (!installedPackage) return
@@ -358,12 +371,82 @@ const make = Effect.gen(function* () {
     return version
   })
 
+  const forkVersion = Effect.fnUntraced(function* (releases: Releases) {
+    const failure = (detail: string, cause?: unknown) =>
+      new UpgradeError(
+        {
+          title: "Could not check for OpenCode updates",
+          detail,
+          retry: "Check your network, then run opencode upgrade again.",
+        },
+        cause === undefined ? undefined : { cause },
+      )
+    const data = yield* Effect.tryPromise({
+      try: async (signal) => {
+        const response = await fetch(`${releases.url}/latest/download/latest.json`, {
+          signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
+        })
+        if (!response.ok) throw new Error(`${releases.url} returned HTTP ${response.status} for latest.json`)
+        return (await response.json()) as { version?: unknown }
+      },
+      catch: (cause) => failure(errorDetail(cause), cause),
+    })
+    if (typeof data.version !== "string" || !parseReleaseVersion(data.version))
+      return yield* Effect.fail(failure(`expected a release version in latest.json, got ${JSON.stringify(data)}`))
+    return data.version
+  })
+
   const latest = (selected?: Method) =>
     (selected ? Effect.succeed(selected) : method()).pipe(
       Effect.flatMap((method) =>
-        method === "winget" ? wingetVersion() : release(method).pipe(Effect.map((data) => data.version)),
+        releases && method === "curl"
+          ? forkVersion(releases)
+          : method === "winget"
+            ? wingetVersion()
+            : release(method).pipe(Effect.map((data) => data.version)),
       ),
     )
+
+  // Windows lets a running image be renamed but not replaced, so the old binary moves aside and a
+  // later upgrade sweeps it once nothing runs it any more.
+  const replaceFromRelease = Effect.fnUntraced(function* (releases: Releases, version: string) {
+    const suffix = randomBytes(4).toString("hex")
+    const staged = `${executable}.${suffix}.new`
+    const url = `${releases.url}/download/v${version}/opencode-${releases.target}.gz`
+    yield* Effect.tryPromise({
+      try: async (signal) => {
+        const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(300_000)]) })
+        if (!response.ok || !response.body) throw new Error(`${url} returned HTTP ${response.status}`)
+        await pipeline(response.body, createGunzip(), createWriteStream(staged, { mode: 0o755 }))
+      },
+      catch: (cause) =>
+        new UpgradeError(
+          {
+            title: "Could not download the OpenCode release",
+            detail: errorDetail(cause),
+            retry: "Check your network, then run opencode upgrade again.",
+          },
+          { cause },
+        ),
+    }).pipe(Effect.tapError(() => fs.remove(staged, { force: true }).pipe(Effect.ignore)))
+    const check = yield* exec([staged, "--version"]).pipe(Effect.orElseSucceed(() => undefined))
+    if (!check?.stdout.includes(version)) {
+      yield* fs.remove(staged, { force: true }).pipe(Effect.ignore)
+      return yield* Effect.fail(
+        new UpgradeError({
+          title: "The downloaded OpenCode release did not start",
+          detail: `expected ${path.basename(executable)} --version to report ${version}, got ${check?.stdout.trim() || "no output"}`,
+          retry: "Run opencode upgrade again.",
+        }),
+      )
+    }
+    const directory = path.dirname(executable)
+    const names = yield* fs.readDirectory(directory).pipe(Effect.orElseSucceed((): string[] => []))
+    const leftovers = names.filter((name) => name.startsWith(`${path.basename(executable)}.`) && name.endsWith(".old"))
+    yield* Effect.forEach(leftovers, (name) => fs.remove(path.join(directory, name)).pipe(Effect.ignore))
+    if (process.platform === "win32") yield* fs.rename(executable, `${executable}.${suffix}.old`)
+    yield* fs.rename(staged, executable)
+  })
 
   const temporaryDirectory = (prefix: string) =>
     Effect.acquireRelease(fs.makeTempDirectory({ directory: global.cache, prefix }), (directory) =>
@@ -425,6 +508,25 @@ const make = Effect.gen(function* () {
   const upgrade = Effect.fnUntraced(function* (method: Method, input: string) {
     if (!parseReleaseVersion(input)) return yield* Effect.fail(new Error(`Invalid version: ${input}`))
     const version = input.trim().replace(/^v/, "")
+    if (releases && method === "curl")
+      return yield* Effect.scoped(
+        flock
+          .acquire("cli-upgrade", undefined, { timeoutMs: Duration.toMillis("15 minutes") })
+          .pipe(Effect.andThen(replaceFromRelease(releases, version))),
+      ).pipe(
+        Effect.mapError((cause) =>
+          cause instanceof UpgradeError
+            ? cause
+            : new UpgradeError(
+                {
+                  title: "Could not replace the OpenCode binary",
+                  detail: errorDetail(cause),
+                  retry: "Fix the issue above, then run opencode upgrade again.",
+                },
+                { cause },
+              ),
+        ),
+      )
     const packageName =
       method === "winget"
         ? wingetPackage
