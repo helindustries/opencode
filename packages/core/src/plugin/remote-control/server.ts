@@ -59,7 +59,7 @@ export default Plugin.define({
       // before the server stores it); session.created publishes that one. Only a share from an
       // earlier run that outlived its session is stale.
       if (!session && share && share.at < runtime.started) return forget(sessionID)
-      if (!session || !share || session.location.directory !== directory) return
+      if (!session || !share) return
       published.add(sessionID)
       runtime.mesh.publish({
         session_id: sessionID,
@@ -68,7 +68,7 @@ export default Plugin.define({
         capabilities: endpoint?.password ? capabilities : [],
         server_url: endpoint?.url ?? "",
         title: session.title ?? "",
-        directory,
+        directory: session.location.directory,
         project_id: session.projectID,
         origin_user: owner,
         client_hint: share.hint,
@@ -91,6 +91,10 @@ export default Plugin.define({
       await runtime.save()
     }
 
+    // Instances exist only for locations something has opened since the server started, so one of
+    // them publishes every share, wherever its session lives.
+    const leader = () => runtime.instances.values().next().value === instance
+
     const sync = async () => {
       if (!runtime.state.active) return
       if (config.publish) {
@@ -98,7 +102,7 @@ export default Plugin.define({
         for (const session of sessions?.data.filter((item) => matches(item.projectID)) ?? [])
           await adopt(session.id, "tui")
       }
-      await Promise.all(Object.keys(runtime.state.shared).map(publish))
+      if (leader()) await Promise.all(Object.keys(runtime.state.shared).map(publish))
     }
 
     const status = async (): Promise<RemoteControl.Status> => {
@@ -163,8 +167,9 @@ export default Plugin.define({
         if (reached instanceof Error) return context.error("mesh_unreachable", reached.message, { url })
         runtime.state.active = true
         runtime.state.target = address ?? runtime.state.target
+        // An explicit share starts over, so it outranks a revoke the mesh holds from an earlier share.
         if (input.session_id)
-          runtime.state.shared[input.session_id] ??= { at: Date.now(), hint: input.client_hint ?? "tui" }
+          runtime.state.shared[input.session_id] = { at: Date.now(), hint: input.client_hint ?? "tui" }
         await runtime.save()
         await Promise.all([...runtime.instances].map((instance) => instance.sync()))
         broadcast("state.changed", { active: true })
@@ -203,7 +208,7 @@ export default Plugin.define({
             !event.data.parentID &&
             matches(event.data.projectID)
           if (adopted) await adopt(event.data.sessionID, "tui")
-          if (runtime.state.shared[event.data.sessionID]) await publish(event.data.sessionID)
+          if (leader() && runtime.state.shared[event.data.sessionID]) await publish(event.data.sessionID)
           continue
         }
         if (event.type === "session.renamed" || event.type === "session.moved") {

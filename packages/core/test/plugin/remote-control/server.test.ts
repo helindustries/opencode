@@ -79,6 +79,22 @@ describe("server plugin", () => {
     expect(state).toEqual({ active: true, target: null, shared: {} })
   })
 
+  test("a shared session in a location no instance serves is still published", async () => {
+    const run = await start()
+    run.sessions.set("ses_far", { id: "ses_far", title: "far", projectID: "global", location: { directory: "/other" } })
+    await run.call("share.start", { session_id: "ses_far" })
+    const record = await until(() => run.mesh.records.get("ses_far"), "ses_far published")
+    expect(record.directory).toBe("/other")
+  })
+
+  test("sharing again starts over, so it outranks an earlier revoke", async () => {
+    const run = await start({}, { active: true, target: null, shared: { ses_1: { at: 1, hint: "tui" } } })
+    const before = Date.now()
+    await run.call("share.start", { session_id: "ses_1" })
+    const record = await until(() => run.mesh.records.get("ses_1"), "ses_1 published")
+    expect(record.shared_at).toBeGreaterThanOrEqual(before)
+  })
+
   test("a rename republishes and a delete revokes", async () => {
     const run = await start()
     await run.call("share.start", { session_id: "ses_1" })
