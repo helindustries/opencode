@@ -17,10 +17,11 @@ afterEach(async () => {
   else process.env["OPENCODE_PASSWORD"] = saved
 })
 
-async function start(options: Record<string, unknown> = {}) {
+async function start(options: Record<string, unknown> = {}, stored?: unknown) {
   const mesh = fakeMesh()
   const fake = fakeContext({ mesh_url: mesh.url, server_url: "http://127.0.0.1:4096", ...options })
   fake.sessions.set("ses_1", { id: "ses_1", title: "first", projectID: "global", location: { directory: "/work" } })
+  if (stored) fake.storage.set("state", stored)
   const dispose = await plugin.setup(fake.context)
   cleanups.push(() => mesh.stop())
   if (dispose) cleanups.push(dispose)
@@ -53,6 +54,29 @@ describe("server plugin", () => {
     })
     expect(Buffer.from(record.auth_blob, "base64").toString()).toBe(`opencode:${password}`)
     expect(run.emitted).toContainEqual(["state.changed", { active: true }])
+  })
+
+  test("a session shared before it exists is published once it is created", async () => {
+    const run = await start()
+    const status = (await run.call("share.start", { session_id: "ses_new" })) as { shared: string[] }
+    expect(status.shared).toEqual(["ses_new"])
+    expect(run.mesh.records.has("ses_new")).toBe(false)
+    run.sessions.set("ses_new", { id: "ses_new", title: "new", projectID: "global", location: { directory: "/work" } })
+    run.event({
+      type: "session.created",
+      data: { sessionID: "ses_new", projectID: "global", location: { directory: "/work" } },
+    })
+    await until(() => run.mesh.records.get("ses_new"), "ses_new published")
+    expect(run.mesh.deleted).toEqual([])
+  })
+
+  test("a share from an earlier run whose session is gone is dropped", async () => {
+    const run = await start({}, { active: true, target: null, shared: { ses_gone: { at: 1, hint: "tui" } } })
+    const state = await until(() => {
+      const current = run.storage.get("state") as { active: boolean; target: string | null; shared: object }
+      return Object.keys(current.shared).length === 0 && current
+    }, "ses_gone dropped")
+    expect(state).toEqual({ active: true, target: null, shared: {} })
   })
 
   test("a rename republishes and a delete revokes", async () => {

@@ -19,6 +19,7 @@ type Instance = { sync: () => Promise<void>; emit: (event: "mesh.changed" | "sta
 type Runtime = {
   mesh: Mesh
   state: State
+  started: number
   instances: Set<Instance>
   nodeID?: string
   abort: AbortController
@@ -54,7 +55,10 @@ export default Plugin.define({
     const publish = async (sessionID: string) => {
       const session = await ctx.session.get({ sessionID }).catch(() => undefined)
       const share = runtime.state.shared[sessionID]
-      if (!session && share) return forget(sessionID)
+      // A client can share a session it has not created yet (the TUI navigates to a new session
+      // before the server stores it); session.created publishes that one. Only a share from an
+      // earlier run that outlived its session is stale.
+      if (!session && share && share.at < runtime.started) return forget(sessionID)
       if (!session || !share || session.location.directory !== directory) return
       published.add(sessionID)
       runtime.mesh.publish({
@@ -192,16 +196,14 @@ export default Plugin.define({
     void (async () => {
       for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
         if (event.type === "session.created") {
-          if (
+          const adopted =
             event.data.location.directory === directory &&
             runtime.state.active &&
             config.publish &&
             !event.data.parentID &&
             matches(event.data.projectID)
-          ) {
-            await adopt(event.data.sessionID, "tui")
-            await publish(event.data.sessionID)
-          }
+          if (adopted) await adopt(event.data.sessionID, "tui")
+          if (runtime.state.shared[event.data.sessionID]) await publish(event.data.sessionID)
           continue
         }
         if (event.type === "session.renamed" || event.type === "session.moved") {
@@ -236,6 +238,7 @@ function acquire(storage: Plugin.Context["storage"], url: string) {
   const created = storage.get(stateKey).then((stored) => {
     const runtime: Runtime = {
       state: isState(stored) ? stored : { active: false, target: null, shared: {} },
+      started: Date.now(),
       instances: new Set(),
       abort: new AbortController(),
       save: () => storage.set(stateKey, runtime.state),
