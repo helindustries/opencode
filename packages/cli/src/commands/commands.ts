@@ -23,6 +23,13 @@ const ServerParams = {
   ),
 }
 
+const MeshParams = {
+  config: Flag.String("config").pipe(
+    Flag.withDescription("Mesh config file (default ~/.config/opencode/ocmesh.toml or $OCMESH_CONFIG)"),
+    Flag.optional,
+  ),
+}
+
 const PermissionParams = {
   auto: Flag.Boolean("auto").pipe(
     Flag.withDescription("Auto-approve permissions that are not explicitly denied"),
@@ -546,6 +553,36 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           Flag.withDefault(false),
         ),
       },
+    }),
+    Spec.make("mesh", {
+      description: "Run and inspect the LAN mesh that shares sessions between machines",
+      commands: [
+        Spec.make("run", { description: "Run this machine's mesh node in the foreground", params: { ...MeshParams } }),
+        Spec.make("list", {
+          description: "List the sessions the mesh knows",
+          params: {
+            ...MeshParams,
+            harness: Flag.String("harness").pipe(Flag.withDescription("Only sessions of this harness"), Flag.optional),
+            all: Flag.Boolean("all").pipe(Flag.withDescription("Include forgotten sessions"), Flag.withDefault(false)),
+          },
+        }),
+        Spec.make("stats", { description: "Show node, session and peer counts", params: { ...MeshParams } }),
+        Spec.make("peers", { description: "Show the peers and their status", params: { ...MeshParams } }),
+        Spec.make("checked", {
+          description: "Show the neighbour addresses the mesh checked (quiet mode)",
+          params: { ...MeshParams },
+        }),
+        Spec.make("trust", {
+          description: "Show this node's identity and trusted peers, or admit peer certificates",
+          params: {
+            ...MeshParams,
+            files: Argument.String("file").pipe(
+              Argument.withDescription("A peer's node.pem to admit"),
+              Argument.variadic({ min: 0 }),
+            ),
+          },
+        }),
+      ],
     }),
     Spec.make("serve", {
       description: "Start the v2 API and web server",

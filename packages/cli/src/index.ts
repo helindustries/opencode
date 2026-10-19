@@ -78,6 +78,14 @@ const Handlers = Runtime.handlers(Commands, {
     set: () => import("./commands/handlers/service/set"),
     unset: () => import("./commands/handlers/service/unset"),
   },
+  mesh: {
+    run: () => import("./commands/handlers/mesh/run"),
+    list: () => import("./commands/handlers/mesh/list"),
+    stats: () => import("./commands/handlers/mesh/stats"),
+    peers: () => import("./commands/handlers/mesh/peers"),
+    checked: () => import("./commands/handlers/mesh/checked"),
+    trust: () => import("./commands/handlers/mesh/trust"),
+  },
   serve: () => import("./commands/handlers/serve"),
 })
 
