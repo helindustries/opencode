@@ -1,6 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { RemoteControl } from "@opencode/schema/remote-control"
-import { createSignal, Show } from "solid-js"
+import { createEffect, createRoot, createSignal, on, Show } from "solid-js"
 
 export default Plugin.define({
   id: "opencode.remote-control.tui",
@@ -22,21 +22,48 @@ export default Plugin.define({
           if (!next.attachable)
             return toast("warning", "Sharing, but other machines cannot attach: set server_url and OPENCODE_PASSWORD")
           if (next.target) return toast("success", `Syncing with ${next.target}`)
-          toast("success", input.session_id ? "Sharing this session with the mesh" : "Remote control on")
+          toast(
+            "success",
+            input.session_id
+              ? "Sharing this session with the mesh"
+              : "Remote control on; the next session shown here will be shared",
+          )
         },
         (error: Error) => toast("error", error.message),
       )
 
-    const run = async (target: string | undefined) => {
+    // A new session exists only once its first prompt is sent, so /rc without a session shares
+    // whichever session this TUI shows next: the one the first prompt creates, or one opened.
+    const [pending, setPending] = createSignal(false)
+    const routeSession = () => {
       const route = context.ui.router.current()
-      const sessionID = route.type === "session" ? route.sessionID : undefined
+      return route.type === "session" ? route.sessionID : undefined
+    }
+    const dispose = createRoot((dispose) => {
+      createEffect(
+        on(routeSession, (sessionID) => {
+          if (!sessionID || !pending()) return
+          setPending(false)
+          void start({ session_id: sessionID })
+        }),
+      )
+      return dispose
+    })
+    const sharePending = () => setPending(true)
+
+    const run = async (target: string | undefined) => {
+      const sessionID = routeSession()
       const current = await rc.status(undefined).catch((error: Error) => error)
-      if (current instanceof Error) return toast("error", `Remote control unavailable on this server: ${current.message}`)
+      if (current instanceof Error)
+        return toast("error", `Remote control unavailable on this server: ${current.message}`)
       setStatus(current)
       if (!current.mesh.reachable) return toast("error", `Mesh unreachable at ${current.mesh.url}`)
       if (target && current.active && current.target?.split(":")[0] === target.split(":")[0])
         return toast("warning", `Already connected to ${current.target}`)
-      if (target || !current.active) return start({ session_id: sessionID, target })
+      if (target || !current.active) {
+        if (!sessionID) sharePending()
+        return start({ session_id: sessionID, target })
+      }
 
       const choice = await context.ui.dialog.select({
         title: "Remote control",
@@ -47,6 +74,15 @@ export default Plugin.define({
                   title: "Share this session",
                   value: "share",
                   description: "Add it to the sessions this machine shares",
+                },
+              ]
+            : []),
+          ...(!sessionID
+            ? [
+                {
+                  title: "Share the next session",
+                  value: "next",
+                  description: "The one the first prompt creates, or the one opened next",
                 },
               ]
             : []),
@@ -63,7 +99,12 @@ export default Plugin.define({
         ],
       })
       if (choice === "share") return start({ session_id: sessionID })
+      if (choice === "next") {
+        sharePending()
+        return toast("info", "The next session shown here will be shared")
+      }
       if (choice !== "disconnect") return
+      setPending(false)
       await rc["share.stop"](undefined).then(
         (next) => {
           setStatus(next)
@@ -108,5 +149,7 @@ export default Plugin.define({
         },
       ],
     }))
+
+    return dispose
   },
 })

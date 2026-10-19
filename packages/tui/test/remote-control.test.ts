@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import type { Plugin } from "@opencode/plugin/tui"
 import type { RemoteControl } from "@opencode/schema/remote-control"
+import { createSignal } from "solid-js"
 import tui from "../src/feature-plugins/system/remote-control"
 
 const idle: RemoteControl.Status = {
@@ -18,14 +19,16 @@ const idle: RemoteControl.Status = {
 async function rc(options: {
   status?: RemoteControl.Status | Error
   route?: { type: string; sessionID?: string }
-  choice?: string
+  choice?: string | string[]
   start?: Error
 }) {
+  const choices = [options.choice ?? []].flat()
   const calls: Array<[string, unknown]> = []
   const toasts: Array<{ message: string; variant?: string }> = []
   const offered: string[][] = []
   let command: { run: (input?: string) => unknown } | undefined
   const status = options.status ?? idle
+  const [route, setRoute] = createSignal(options.route ?? { type: "home" })
   const client = {
     status: async () => {
       if (status instanceof Error) throw status
@@ -51,12 +54,12 @@ async function rc(options: {
       },
     },
     ui: {
-      router: { current: () => options.route ?? { type: "home" } },
+      router: { current: route },
       toast: { show: (toast: { message: string; variant?: string }) => void toasts.push(toast) },
       dialog: {
         select: async (input: { options: Array<{ value: string }> }) => {
           offered.push(input.options.map((option) => option.value))
-          return options.choice
+          return choices.shift()
         },
       },
       slot: () => () => {},
@@ -69,6 +72,10 @@ async function rc(options: {
     offered,
     run: async (input?: string) => {
       await command!.run(input)
+      await Bun.sleep(0)
+    },
+    open: async (sessionID: string) => {
+      setRoute({ type: "session", sessionID })
       await Bun.sleep(0)
     },
   }
@@ -107,6 +114,32 @@ test("an unshared open session can be added from the menu", async () => {
   await run.run("")
   expect(run.offered).toEqual([["share", "stay", "disconnect"]])
   expect(run.calls[0]).toEqual(["share.start", { session_id: "ses_2", client_hint: "tui" }])
+})
+
+test("/rc without a session shares the next session shown, once", async () => {
+  const run = await rc({})
+  await run.run("")
+  expect(run.toasts.at(-1)).toMatchObject({ message: "Remote control on; the next session shown here will be shared" })
+  await run.open("ses_old")
+  await run.open("ses_other")
+  expect(run.calls).toEqual([
+    ["share.start", { session_id: undefined, target: undefined, client_hint: "tui" }],
+    ["share.start", { session_id: "ses_old", client_hint: "tui" }],
+  ])
+})
+
+test("while on, the menu shares the next session, and disconnecting cancels that", async () => {
+  const next = await rc({ status: { ...idle, active: true }, choice: "next" })
+  await next.run("")
+  expect(next.offered).toEqual([["next", "stay", "disconnect"]])
+  await next.open("ses_new")
+  expect(next.calls).toEqual([["share.start", { session_id: "ses_new", client_hint: "tui" }]])
+
+  const cancelled = await rc({ status: { ...idle, active: true }, choice: ["next", "disconnect"] })
+  await cancelled.run("")
+  await cancelled.run("")
+  await cancelled.open("ses_new")
+  expect(cancelled.calls).toEqual([["share.stop", undefined]])
 })
 
 test("/rc <host> syncs with that machine", async () => {
