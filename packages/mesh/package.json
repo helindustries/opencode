@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode/mesh",
+  "version": "2.0.32",
+  "description": "LAN registry of shared opencode sessions, synced between machines over mutual TLS",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 30000"
+  },
+  "dependencies": {
+    "asn1js": "3.0.10",
+    "pkijs": "3.4.0"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:"
+  }
+}

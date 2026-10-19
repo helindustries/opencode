@@ -495,6 +495,20 @@
         "@typescript/native": "catalog:",
       },
     },
+    "packages/mesh": {
+      "name": "@opencode/mesh",
+      "version": "2.0.32",
+      "dependencies": {
+        "asn1js": "3.0.10",
+        "pkijs": "3.4.0",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/plugin": {
       "name": "@opencode/plugin",
       "version": "2.0.32",
@@ -2053,6 +2067,8 @@
     "@opencode/latex": ["@opencode/latex@workspace:packages/latex"],
 
     "@opencode/merman": ["@opencode/merman@workspace:packages/merman"],
+
+    "@opencode/mesh": ["@opencode/mesh@workspace:packages/mesh"],
 
     "@opencode/plugin": ["@opencode/plugin@workspace:packages/plugin"],
 
