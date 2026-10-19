@@ -62,6 +62,8 @@ export default defineConfig(({ command }) => {
       define: {
         // Local renderer/server mode still uses the dev application identity and updater policy.
         "import.meta.env.OPENCODE_CHANNEL": JSON.stringify(channel === "local" ? "dev" : channel),
+        // A build that is not published to the update feed sets "off", or the feed's release replaces it.
+        "import.meta.env.OPENCODE_DESKTOP_UPDATER": JSON.stringify(process.env.OPENCODE_DESKTOP_UPDATER ?? "on"),
       },
       build: {
         minify: command === "build",
