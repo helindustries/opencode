@@ -487,7 +487,13 @@ export function TitlebarTabStrip(props: {
                         />
                       )}
                     </Show>
-                    <div class="flex flex-col items-stretch" classList={{ "ps-3": id !== "" }}>
+                    <div
+                      classList={{
+                        "flex flex-col items-stretch": vertical(),
+                        contents: !vertical(),
+                        "ps-3": id !== "",
+                      }}
+                    >
                       <For each={section()?.keys.filter((key) => shown(section()?.group, key)) ?? []}>
                         {(key) => (
                           <Show when={byKey().get(key)} keyed>
