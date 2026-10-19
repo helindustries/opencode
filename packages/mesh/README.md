@@ -1,9 +1,6 @@
 # Mesh and remote control
 
-The mesh is a small registry of shared opencode sessions that every machine on a LAN runs once.
-Nodes find each other, sync their registries over mutual TLS and converge on the union. Remote
-control, built into the opencode server, publishes sessions into the local node; the desktop app
-reads them back through the server and opens sessions shared from other machines.
+The mesh functions as a lightweight registry of shared opencode sessions, maintained by every machine on a LAN. Nodes discover each other, synchronize their registries via mutual TLS, and converge on a unified view. Remote control, integrated into the opencode server, publishes sessions to the local node; the desktop application retrieves these from the server and opens sessions shared from other machines.
 
 ## Running a node
 
@@ -16,8 +13,7 @@ opencode mesh list [--all]        # sessions the mesh knows; --all includes forg
 opencode mesh stats | checked
 ```
 
-Pairing is once per mesh: admit one node's `node.pem` on another and the other way round. Every
-sync carries the trust bundle along, so a third node trusted by either side is trusted everywhere.
+Pairing is performed once per mesh: admit one node's `node.pem` on another and vice versa. Every sync includes the trust bundle, ensuring that any third node trusted by either side is trusted across the entire mesh.
 
 ## Config
 
@@ -35,20 +31,13 @@ tls = "mutual"        # "off": loopback only, no peers
 node_name = "..."     # default: the host name
 ```
 
-With `quiet = true` a node advertises nothing: its peer port completes only a mutual-TLS handshake
-with a trusted certificate within 2 s and closes anything else without a reply. Peers are found
-through the operating system's neighbour (ARP) table instead: each new address and MAC pair gets
-one handshake on the peer port, and the result joins a list of checked addresses the whole mesh
-shares, so a node that joins later skips what was already checked. A newcomer checks its own table
-only until it reaches its first peer, which hands it the rest of the mesh.
+When `quiet = true`, a node advertises nothing: its peer port completes only a mutual-TLS handshake with a trusted certificate within 2 s and closes any other connection without a reply. Peers are discovered via the operating system's neighbor (ARP) table: each new address and MAC pair triggers one handshake on the peer port, adding the result to a shared list of checked addresses across the mesh. This allows a node joining later to skip addresses already verified. A newcomer checks its own table only until it reaches its first peer, which then provides the rest of the mesh information.
 
-The storage format, identities and config are those of the earlier Python ocmesh, so an existing
-node keeps its id, trust and registry.
+The storage format, identities, and configuration structure are identical to those of the earlier Python ocmesh, meaning an existing node retains its id, trust, and registry.
 
 ## Remote control
 
-On by default. `/rc` in the TUI shares the open session; `/rc <host>` connects to another node.
-Settings live in the `remote_control` section of `opencode.json`:
+Remote control is enabled by default. `/rc` in the TUI shares the current open session; `/rc <host>` connects to another node. Configuration resides in the `remote_control` section of `opencode.json`:
 
 ```jsonc
 {
@@ -64,5 +53,4 @@ Settings live in the `remote_control` section of `opencode.json`:
 }
 ```
 
-A session opened from another machine is attached with the credential its server published, so
-that server must listen on the LAN (`opencode service set hostname 0.0.0.0`) and have a password.
+A session opened from another machine is attached using the credentials published by its server; therefore, that server must listen on the LAN (`opencode service set hostname 0.0.0.0`) and be protected by a password.
