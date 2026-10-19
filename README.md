@@ -43,6 +43,14 @@
 
 ---
 
+### About this fork
+
+This is a fork of [anomalyco/opencode](https://github.com/anomalyco/opencode) that keeps upstream's `dev` merged in and adds session sharing across the machines on one LAN. Every machine runs a small mesh node that keeps a registry of shared sessions and syncs it with the other nodes over mutual TLS; remote control, built into the opencode server, publishes sessions into that registry. `/rc` in the TUI shares the open session, and the desktop app lists sessions shared from other machines and opens them like local ones, questions and permission prompts included. The goal is to pick up a running session from another of your machines without copying anything and without a server reachable from outside the LAN.
+
+Setting it up takes a build from this branch, since there are no release builds and the installation commands below install upstream's opencode. Run `bun install`, then build the CLI in `packages/cli` with `OPENCODE_CHANNEL=latest bun run script/build.ts --single` (on Windows x64, `--target=opencode-windows-x64-baseline`, which is the build the desktop app packages) and the desktop app in `packages/desktop` with `OPENCODE_CHANNEL=prod OPENCODE_DESKTOP_UPDATER=off OPENCODE_CLI_DIST=<absolute path of packages/cli/dist> bun run build && bun run package`. Any CLI channel other than `latest` gets a database of its own, so existing sessions would not show. Set `"update": "disable"` in `opencode.json`, or the updater replaces the CLI with upstream's release. On each machine, run `opencode mesh run` as a login item or service, pair the nodes once by admitting one node's `node.pem` on another with `opencode mesh trust`, and let the opencode server listen on the LAN with a password (`opencode service set hostname 0.0.0.0`) so other machines can attach to its sessions. [packages/mesh/README.md](packages/mesh/README.md) has the config keys and the quiet mode, which finds peers without advertising anything.
+
+---
+
 ### Installation
 
 ```bash
