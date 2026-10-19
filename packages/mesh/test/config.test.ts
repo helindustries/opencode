@@ -29,8 +29,8 @@ describe("config", () => {
   })
 
   test("splits host and port, IPv6 included", () => {
-    expect(splitAddress("192.168.1.2:47614")).toEqual(["192.168.1.2", 47614])
+    expect(splitAddress("192.0.2.2:47614")).toEqual(["192.0.2.2", 47614])
     expect(splitAddress("[fe80::1]:47614")).toEqual(["fe80::1", 47614])
-    expect(() => splitAddress("192.168.1.2")).toThrow("expected 'host:port'")
+    expect(() => splitAddress("192.0.2.2")).toThrow("expected 'host:port'")
   })
 })

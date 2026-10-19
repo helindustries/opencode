@@ -18,23 +18,23 @@ const quietPassesMs = 3 * probeTimeoutMs
 const addresses = { a: "127.0.0.2", c: "127.0.0.3", d: "127.0.0.4" }
 
 const procArp = `IP address       HW type     Flags       HW address            Mask     Device
-192.168.1.2      0x1         0x2         a0:ce:c8:ec:f8:b4     *        eth0
-192.168.1.7      0x1         0x0         00:00:00:00:00:00     *        eth0
-192.168.1.4      0x1         0x2         b4:2e:99:f4:5e:b9     *        eth0
+192.0.2.2      0x1         0x2         02:00:00:aa:00:02     *        eth0
+192.0.2.7      0x1         0x0         00:00:00:00:00:00     *        eth0
+192.0.2.4      0x1         0x2         02:00:00:aa:00:04     *        eth0
 `
 
-const macosArp = `? (192.168.1.1) at 0:11:22:a:b:c on en6 ifscope [ethernet]
-? (192.168.1.2) at a0:ce:c8:ec:f8:b4 on en6 ifscope permanent [ethernet]
-? (192.168.1.9) at (incomplete) on en6 ifscope [ethernet]
-? (192.168.1.255) at ff:ff:ff:ff:ff:ff on en6 ifscope [ethernet]
+const macosArp = `? (192.0.2.1) at 0:11:22:a:b:c on en6 ifscope [ethernet]
+? (192.0.2.2) at 02:00:00:aa:00:02 on en6 ifscope permanent [ethernet]
+? (192.0.2.9) at (incomplete) on en6 ifscope [ethernet]
+? (192.0.2.255) at ff:ff:ff:ff:ff:ff on en6 ifscope [ethernet]
 ? (224.0.0.251) at 1:0:5e:0:0:fb on en6 ifscope permanent [ethernet]
 `
 
 const windowsArp = `
-Schnittstelle: 192.168.1.10 --- 0x7
+Schnittstelle: 192.0.2.10 --- 0x7
   Internetadresse       Physische Adresse     Typ
-  192.168.1.2           a0-ce-c8-ec-f8-b4     dynamisch
-  192.168.1.255         ff-ff-ff-ff-ff-ff     statisch
+  192.0.2.2           02-00-00-aa-00-02     dynamisch
+  192.0.2.255         ff-ff-ff-ff-ff-ff     statisch
   224.0.0.22            01-00-5e-00-00-16     statisch
   255.255.255.255       ff-ff-ff-ff-ff-ff     statisch
 `
@@ -50,20 +50,20 @@ function neighbour(address: string): Neighbour {
 describe("neighbour tables", () => {
   test("/proc/net/arp skips incomplete entries", () => {
     expect(parseProcArp(procArp)).toEqual([
-      { address: "192.168.1.2", mac: "a0:ce:c8:ec:f8:b4" },
-      { address: "192.168.1.4", mac: "b4:2e:99:f4:5e:b9" },
+      { address: "192.0.2.2", mac: "02:00:00:aa:00:02" },
+      { address: "192.0.2.4", mac: "02:00:00:aa:00:04" },
     ])
   })
 
   test("macOS arp normalises MACs and skips broadcast and multicast", () => {
     expect(parseArpOutput(macosArp)).toEqual([
-      { address: "192.168.1.1", mac: "00:11:22:0a:0b:0c" },
-      { address: "192.168.1.2", mac: "a0:ce:c8:ec:f8:b4" },
+      { address: "192.0.2.1", mac: "00:11:22:0a:0b:0c" },
+      { address: "192.0.2.2", mac: "02:00:00:aa:00:02" },
     ])
   })
 
   test("Windows arp reads localised output", () => {
-    expect(parseArpOutput(windowsArp)).toEqual([{ address: "192.168.1.2", mac: "a0:ce:c8:ec:f8:b4" }])
+    expect(parseArpOutput(windowsArp)).toEqual([{ address: "192.0.2.2", mac: "02:00:00:aa:00:02" }])
   })
 })
 

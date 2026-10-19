@@ -140,18 +140,18 @@ test("sessions shared by other machines list as connected and past, and past one
     harness,
     harness_version: "1.0.0",
     capabilities: harness === "opencode" ? ["attach"] : [],
-    server_url: "http://192.168.1.9:4096",
+    server_url: "http://192.0.2.9:4096",
     title,
     directory: "/work",
     project_id: "global",
-    origin_user: "paul",
+    origin_user: "ada",
     client_hint: "tui",
     auth_blob: btoa("opencode:pw"),
     group_tag: null,
     shared_at: now - age,
     last_seen: now - age,
     revoked: false,
-    origin_addr: "192.168.1.9",
+    origin_addr: "192.0.2.9",
   })
   let records = [
     record("ses_live", "Live on B", 10_000),
@@ -183,7 +183,7 @@ test("sessions shared by other machines list as connected and past, and past one
 
   const mesh = page.getByRole("region", { name: "Shared from other machines" })
   const meshRow = (title: string) => mesh.locator('[data-component="home-mesh-row"]').filter({ hasText: title })
-  await expect(meshRow("Live on B")).toContainText("paul on 192.168.1.9")
+  await expect(meshRow("Live on B")).toContainText("ada on 192.0.2.9")
   await expect(mesh.locator('[data-slot="home-mesh-group"]')).toHaveText([/^Connected.*Live on B/, /^Past.*Old on B/])
   await expect(mesh).toContainText("1 shared session from another harness cannot be opened here")
   await expect(mesh).not.toContainText("Other harness")
@@ -217,7 +217,7 @@ test("a notify-only server lists shared sessions without opening them", async ({
   const now = Date.now()
   const opened: string[] = []
   page.on("request", (request) => {
-    if (request.url().startsWith("http://192.168.1.9:4096")) opened.push(request.url())
+    if (request.url().startsWith("http://192.0.2.9:4096")) opened.push(request.url())
   })
   await openHome(page, {
     plugins: remoteControlPlugin,
@@ -239,18 +239,18 @@ test("a notify-only server lists shared sessions without opening them", async ({
               harness: "opencode",
               harness_version: "1.0.0",
               capabilities: ["attach"],
-              server_url: "http://192.168.1.9:4096",
+              server_url: "http://192.0.2.9:4096",
               title: "Live on B",
               directory: "/work",
               project_id: "global",
-              origin_user: "paul",
+              origin_user: "ada",
               client_hint: "tui",
               auth_blob: btoa("opencode:pw"),
               group_tag: null,
               shared_at: now,
               last_seen: now,
               revoked: false,
-              origin_addr: "192.168.1.9",
+              origin_addr: "192.0.2.9",
             },
           ],
   })

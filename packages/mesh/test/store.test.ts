@@ -47,9 +47,9 @@ describe("store", () => {
   })
 
   test("an older live record changes nothing and keeps the known origin address", () => {
-    const existing = stored("ses_1", { last_seen: 2000, origin_addr: "192.168.1.4" })
+    const existing = stored("ses_1", { last_seen: 2000, origin_addr: "192.0.2.4" })
     expect(merge(existing, stored("ses_1", { last_seen: 1000 }))).toBeUndefined()
-    expect(merge(existing, stored("ses_1", { last_seen: 3000 }))?.origin_addr).toBe("192.168.1.4")
+    expect(merge(existing, stored("ses_1", { last_seen: 3000 }))?.origin_addr).toBe("192.0.2.4")
   })
 
   test("auth_blob is encrypted at rest", async () => {
