@@ -8,6 +8,8 @@ const Group = Persistence.struct({
   title: Schema.String,
   collapsed: Persistence.optional(Schema.Boolean),
   members: Persistence.array(Schema.String),
+  // Made because a shared session's mesh record named it; it goes once no tab is in it.
+  mesh: Persistence.optional(Schema.Boolean),
 })
 
 export type TabGroup = typeof Group.Type
@@ -27,21 +29,28 @@ export const { use: useTabGroups, provider: TabGroupsProvider } = createSimpleCo
   name: "TabGroups",
   gate: false,
   init: () => {
-    const [store, setStore] = persisted(Persist.window("tabs.groups"), Groups, { groups: [] })
+    const [store, setStore, , ready] = persisted(Persist.window("tabs.groups"), Groups, { groups: [] })
     const update = (change: (groups: TabGroup[]) => TabGroup[]) => setStore("groups", (groups) => change([...groups]))
 
     return {
+      ready,
       list: () => store.groups,
-      of: (key: string) => store.groups.find((group) => group.members.includes(key)),
       assign: (key: string, groupID: string | undefined) => update((groups) => withMember(groups, key, groupID)),
-      create(title: string, key: string) {
+      /** Without a `key` the group starts empty. */
+      create(title: string, key?: string) {
         const id = `group_${crypto.randomUUID()}`
-        update((groups) => [...withMember(groups, key, undefined), { id, title, members: [key] }])
+        update((groups) =>
+          key === undefined
+            ? [...groups, { id, title, members: [] }]
+            : [...withMember(groups, key, undefined), { id, title, members: [key] }],
+        )
 
         return id
       },
+      createFromMesh: (title: string) =>
+        update((groups) => [...groups, { id: `group_${crypto.randomUUID()}`, title, members: [], mesh: true }]),
       rename: (groupID: string, title: string) =>
-        update((groups) => groups.map((group) => (group.id === groupID ? { ...group, title } : group))),
+        update((groups) => groups.map((group) => (group.id === groupID ? { ...group, title, mesh: false } : group))),
       toggle: (groupID: string) =>
         update((groups) =>
           groups.map((group) => (group.id === groupID ? { ...group, collapsed: !group.collapsed } : group)),
@@ -58,13 +67,13 @@ export const { use: useTabGroups, provider: TabGroupsProvider } = createSimpleCo
         })
       },
       remove: (groupID: string) => update((groups) => groups.filter((group) => group.id !== groupID)),
-      /** Drops members whose tabs are gone, and the groups left empty. */
-      prune: (keys: ReadonlySet<string>) =>
-        update((groups) =>
-          groups
-            .map((group) => ({ ...group, members: group.members.filter((key) => keys.has(key)) }))
-            .filter((group) => group.members.length > 0),
-        ),
+      /** Drops members whose tabs are gone; a group left empty stays until it is deleted. */
+      prune(keys: ReadonlySet<string>) {
+        if (store.groups.some((group) => group.members.some((key) => !keys.has(key))))
+          update((groups) =>
+            groups.map((group) => ({ ...group, members: group.members.filter((key) => keys.has(key)) })),
+          )
+      },
     }
   },
 })

@@ -1,7 +1,11 @@
 import { Schema } from "effect"
 import { createEffect, createMemo } from "solid-js"
+import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "@opencode/ui/context"
+import { RemoteControl } from "@opencode/schema/remote-control"
 import { useLanguage } from "@/runtime/i18n/language"
+import { useGlobal } from "@/runtime/server/runtime"
+import { showToast } from "@/shell/notifications/toast"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
@@ -19,6 +23,7 @@ export const { use: useRemoteControl, provider: RemoteControlProvider } = create
   gate: false,
   init: () => {
     const servers = useServers()
+    const global = useGlobal()
     const tabs = useTabs()
     const language = useLanguage()
     const feed = createMeshFeed(() => servers.visible[0])
@@ -28,6 +33,7 @@ export const { use: useRemoteControl, provider: RemoteControlProvider } = create
       sharedSessions<ServerConnection.Any>({
         local: feed.host(),
         localShared: feed.status()?.shared ?? [],
+        localRecords: feed.local(),
         remote: feed
           .connected()
           .filter(feed.attachable)
@@ -45,9 +51,22 @@ export const { use: useRemoteControl, provider: RemoteControlProvider } = create
 
       for (const conn of staleCredentials(remote, saved)) servers.add(conn)
     })
-    const keys = createMemo(
-      () => new Set(shared().map((item) => `${ServerConnection.key(item.server)}\n${item.sessionId}`)),
+    const sessionKey = (server: ServerConnection.Key, sessionId: string) => `${server}\n${sessionId}`
+    const byKey = createMemo(
+      () => new Map(shared().map((item) => [sessionKey(ServerConnection.key(item.server), item.sessionId), item])),
     )
+    // A group just picked shows at once; the mesh record carries it after the sharing server republishes.
+    const [picked, setPicked] = createStore<Record<string, string | null>>({})
+    const group = (server: ServerConnection.Key, sessionId: string) => {
+      const key = sessionKey(server, sessionId)
+      const item = byKey().get(key)
+
+      return item ? (key in picked ? picked[key]! : item.group) : undefined
+    }
+    createEffect(() => {
+      for (const [key, item] of byKey())
+        if (key in picked && picked[key] === item.group) setPicked(produce((draft) => delete draft[key]))
+    })
 
     createEffect(() => {
       if (!openedReady()) return
@@ -63,7 +82,25 @@ export const { use: useRemoteControl, provider: RemoteControlProvider } = create
 
     return {
       feed,
-      shared: (server: ServerConnection.Key, sessionId: string) => keys().has(`${server}\n${sessionId}`),
+      shared: (server: ServerConnection.Key, sessionId: string) => byKey().has(sessionKey(server, sessionId)),
+      /** The mesh group of a shared session, null for none; undefined when the session is not shared. */
+      group,
+      async setGroup(server: ServerConnection.Key, sessionId: string, title: string | null) {
+        const key = sessionKey(server, sessionId)
+        const item = byKey().get(key)
+
+        if (!item) return
+        setPicked(key, title)
+        const done = await global
+          .ensureServerCtx(item.server)
+          .sdk.api.rpc(RemoteControl.Definition)
+          ["share.group"]({ session_id: sessionId, group: title })
+          .catch(() => undefined)
+
+        if (done) return
+        setPicked(produce((draft) => delete draft[key]))
+        showToast({ variant: "error", title: language.t("session.tab.group.meshFailed") })
+      },
     }
   },
 })

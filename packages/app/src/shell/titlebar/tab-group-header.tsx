@@ -48,11 +48,12 @@ export function TabGroupHeader(props: {
   onToggle: () => void
   onMove: (offset: -1 | 1) => void
   onDelete: () => void
+  onCreate: () => void
 }) {
   const language = useLanguage()
 
   return (
-    <div data-slot="tab-group-header" data-group={props.group.id} class="mt-2 flex h-7 w-full min-w-0 items-center">
+    <div data-slot="tab-group-header" data-group={props.group.id} class="flex h-7 w-full min-w-0 items-center">
       <Show when={!props.renaming} fallback={<TitleEditor title={props.group.title} onDone={props.onRenamed} />}>
         <Menu.Context modal={false}>
           <Menu.Context.Trigger
@@ -82,6 +83,7 @@ export function TabGroupHeader(props: {
           <Menu.Context.Portal>
             <Menu.Context.Content>
               <Menu.Item onSelect={props.onRename}>{language.t("common.rename")}</Menu.Item>
+              <Menu.Item onSelect={props.onCreate}>{language.t("home.sessions.group.newEmpty")}</Menu.Item>
               <Menu.Item disabled={props.first} onSelect={() => props.onMove(-1)}>
                 {language.t("home.sessions.group.moveUp")}
               </Menu.Item>

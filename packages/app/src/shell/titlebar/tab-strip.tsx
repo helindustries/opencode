@@ -1,8 +1,8 @@
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { batch, createEffect, createMemo, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
-import { Accessibility, AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
+import { Accessibility, AutoScroller, Feedback, PointerActivationConstraints, type Draggable } from "@dnd-kit/dom"
 import { RestrictToHorizontalAxis, RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { arrayMove } from "@dnd-kit/helpers"
@@ -11,7 +11,7 @@ import { ServerConnection } from "@/runtime/server/registry"
 import { DraftTabItem, TabNavItem, type TabGrouping } from "@/shell/titlebar/tab-nav"
 import { useRemoteControl } from "@/shell/tabs/remote-control"
 import { useTabGroups, type TabGroup } from "@/shell/tabs/groups"
-import { groupAfterDrop, tabSections } from "@/shell/tabs/sidebar-model"
+import { groupAfterDrop, groupEntry, isGroupEntry, meshGroups, tabSections } from "@/shell/tabs/sidebar-model"
 import { TabGroupHeader } from "@/shell/titlebar/tab-group-header"
 import { useGlobal, useServerCtx, type ServerCtx } from "@/runtime/server/runtime"
 import { useLanguage } from "@/runtime/i18n/language"
@@ -85,6 +85,24 @@ function SessionTabSlot(props: {
         dragging={sortable.isDragSource()}
         orientation={props.orientation}
       />
+    </div>
+  )
+}
+
+// A header takes part in sorting only as a place to drop: the pointer sensor never starts a drag on it.
+function GroupHeaderSlot(props: { id: string; index: number; children: JSX.Element }) {
+  const sortable = useSortable({
+    get id() {
+      return props.id
+    },
+    get index() {
+      return props.index
+    },
+  })
+
+  return (
+    <div ref={sortable.ref} class="w-full shrink-0">
+      {props.children}
     </div>
   )
 }
@@ -296,13 +314,26 @@ export function TitlebarTabStrip(props: {
   const [visibility, setVisibility] = createStore<Record<string, boolean>>({})
   const [unread, setUnread] = createStore<Record<string, boolean>>({})
   const [renaming, setRenaming] = createSignal<string>()
+  const remoteControl = useRemoteControl()
+  const byKey = createMemo(() => new Map(props.tabs.map((tab) => [tabKey(tab), tab])))
+  // A shared session's group lives in its mesh record, so every machine shows it alike.
+  const tags = createMemo(
+    () =>
+      new Map(
+        props.tabs.flatMap((tab) => {
+          const title = tab.type === "session" ? remoteControl.group(tab.server, tab.sessionId) : undefined
+
+          return title === undefined ? [] : [[tabKey(tab), title] as const]
+        }),
+      ),
+  )
+  const shownGroups = createMemo(() => meshGroups(groups.list(), tags()))
   // Only the vertical tab list shows groups; the titlebar keeps one flat row.
   const sections = createMemo(() =>
     vertical()
-      ? tabSections(props.tabs.map(tabKey), groups.list())
+      ? tabSections(props.tabs.map(tabKey), shownGroups().groups)
       : [{ group: undefined, keys: props.tabs.map(tabKey) }],
   )
-  const byKey = createMemo(() => new Map(props.tabs.map((tab) => [tabKey(tab), tab])))
   // A collapsed group still shows its active tab, so the session on screen keeps its place in the list.
   const shown = (group: TabGroup | undefined, key: string) =>
     !group?.collapsed || (props.currentTab !== undefined && tabKey(props.currentTab) === key)
@@ -316,21 +347,102 @@ export function TitlebarTabStrip(props: {
     ),
   )
   const visibleTabIds = () => visibleTabs().map(tabKey)
+  // The drag order: visible tabs with each group's header ahead of its tabs.
+  const entries = createMemo(() => {
+    const visible = new Set(visibleTabIds())
 
-  // Groups forget tabs that were closed; an empty list is the store before it loads, not a closed window.
-  createEffect(() => {
-    if (props.tabs.length > 0) groups.prune(new Set(props.tabs.map(tabKey)))
+    return sections().flatMap((section) => [
+      ...(section.group ? [groupEntry(section.group.id)] : []),
+      ...section.keys.filter((key) => visible.has(key)),
+    ])
   })
+  const [dropGroup, setDropGroup] = createSignal<string>()
+  // While sorting, dnd-kit moves the dragged tab's node, also into another group's container. Solid clears a list
+  // that becomes empty by emptying its container, so a node moved out of it would stay behind next to the one
+  // rendered in its new group; the node goes back to where Solid put it before the drop changes any state.
+  let dragOrigin: { element: Element; parent: Node; next: Node | null } | undefined
+  const restoreDragged = () => {
+    const origin = dragOrigin
+    dragOrigin = undefined
+
+    if (origin && (origin.element.parentNode !== origin.parent || origin.element.nextSibling !== origin.next))
+      origin.parent.insertBefore(origin.element, origin.next)
+  }
+
+  // Groups forget tabs that were closed. Desktop storage loads after the first render, and pruning against the
+  // initial empty list would save it over the stored groups; an empty tab list is the store before it loads.
+  createEffect(() => {
+    if (groups.ready() && props.tabs.length > 0) groups.prune(new Set(props.tabs.map(tabKey)))
+  })
+
+  // A group another machine gave a shared session appears here too, and goes when no tab is left in it; that waits
+  // for the mesh records, before which every such group looks empty.
+  createEffect(() => {
+    if (!groups.ready()) return
+    for (const title of shownGroups().missing) groups.createFromMesh(title)
+
+    if (remoteControl.feed.available())
+      for (const group of shownGroups().groups) if (group.mesh && group.members.length === 0) groups.remove(group.id)
+  })
+
+  const tagShared = (key: string, title: string | null) => {
+    const tab = byKey().get(key)
+
+    if (tab?.type === "session") void remoteControl.setGroup(tab.server, tab.sessionId, title)
+  }
+
+  const assignTab = (key: string, groupID: string | undefined) => {
+    if (!tags().has(key)) return groups.assign(key, groupID)
+    groups.assign(key, undefined)
+    tagShared(key, groups.list().find((group) => group.id === groupID)?.title ?? null)
+  }
+
+  // Group edits that retag shared tabs run batched: between the retag and the group change, the effect above would
+  // see a title no group has and create it.
+  const createGroup = (key?: string) =>
+    batch(() => {
+      const shared = key !== undefined && tags().has(key)
+      const title = language.t("home.sessions.group.new")
+      const id = groups.create(title, shared ? undefined : key)
+
+      if (shared) tagShared(key, title)
+      setRenaming(id)
+    })
+
+  const sharedMembers = (groupID: string) =>
+    shownGroups()
+      .groups.find((group) => group.id === groupID)
+      ?.members.filter((key) => tags().has(key)) ?? []
+
+  const renameGroup = (groupID: string, title: string) =>
+    batch(() => {
+      for (const key of sharedMembers(groupID)) tagShared(key, title)
+      groups.rename(groupID, title)
+    })
+
+  const removeGroup = (groupID: string) =>
+    batch(() => {
+      for (const key of sharedMembers(groupID)) tagShared(key, null)
+      groups.remove(groupID)
+    })
 
   const grouping = (key: string): TabGrouping | undefined =>
     vertical()
       ? {
           groups: groups.list(),
-          current: groups.of(key)?.id,
-          assign: (groupID) => groups.assign(key, groupID),
-          create: () => setRenaming(groups.create(language.t("home.sessions.group.new"), key)),
+          current: shownGroups().groups.find((group) => group.members.includes(key))?.id,
+          assign: (groupID) => assignTab(key, groupID),
+          create: () => createGroup(key),
+          createEmpty: () => createGroup(),
         }
       : undefined
+
+  const trackDrop = (source: Draggable | null) => {
+    if (vertical() && isSortable(source)) {
+      const next = arrayMove(entries(), source.initialIndex, source.index)
+      setDropGroup(groupAfterDrop(next, source.id.toString(), shownGroups().groups))
+    }
+  }
 
   command.register("titlebar-tab-cycle", () => [
     {
@@ -411,7 +523,9 @@ export function TitlebarTabStrip(props: {
                   : [new PointerActivationConstraints.Distance({ value: 4 })],
               preventActivation: (event) =>
                 event.target instanceof Element &&
-                !!event.target.closest('[data-slot="tab-close"], [contenteditable="true"]'),
+                !!event.target.closest(
+                  '[data-slot="tab-close"], [contenteditable="true"], [data-slot="tab-group-header"]',
+                ),
             }),
           ]}
           modifiers={[
@@ -427,17 +541,29 @@ export function TitlebarTabStrip(props: {
             const source = event.operation.source
 
             if (!source) return
+            const element = source.element
+
+            if (element?.parentNode) dragOrigin = { element, parent: element.parentNode, next: element.nextSibling }
             const tab = props.tabs.find((item) => tabKey(item) === source.id.toString())
 
             if (!tab) return
 
-            if (vertical()) return
+            if (vertical()) {
+              trackDrop(source)
+
+              return
+            }
             const tabEl = source.element?.querySelector<HTMLDivElement>("[data-titlebar-tab]")
             props.onNavigate(tab, tabEl ?? undefined)
           }}
+          onDragOver={(event) => trackDrop(event.operation.source)}
+          onDragMove={(event) => trackDrop(event.operation.source)}
           onDragEnd={(event) => {
-            const current = visibleTabIds()
+            const current = entries()
             const source = event.operation.source
+
+            setDropGroup(undefined)
+            restoreDragged()
 
             if (event.canceled || !isSortable(source)) return
 
@@ -446,9 +572,10 @@ export function TitlebarTabStrip(props: {
             if (initialIndex !== index) {
               const next = arrayMove(current, source.initialIndex, source.index)
               const moved = source.id.toString()
+              const tabsOnly = (order: string[]) => order.filter((entry) => !isGroupEntry(entry))
 
-              if (vertical()) groups.assign(moved, groupAfterDrop(next, moved, groups.list()))
-              props.onReorder(mergeVisibleTabOrder(props.tabs.map(tabKey), current, next))
+              if (vertical()) assignTab(moved, groupAfterDrop(next, moved, shownGroups().groups))
+              props.onReorder(mergeVisibleTabOrder(props.tabs.map(tabKey), tabsOnly(current), tabsOnly(next)))
             }
           }}
         >
@@ -466,25 +593,37 @@ export function TitlebarTabStrip(props: {
                 const section = () => sections().find((item) => (item.group?.id ?? "") === id)
 
                 return (
-                  <>
+                  <div
+                    data-slot="tab-group-section"
+                    data-drop-target={id !== "" && dropGroup() === id}
+                    classList={{
+                      "flex flex-col items-stretch": vertical(),
+                      contents: !vertical(),
+                      "mt-2 rounded-[8px] border border-transparent pb-1": id !== "",
+                      "border-v2-border-border-focus bg-v2-background-bg-layer-02": id !== "" && dropGroup() === id,
+                    }}
+                  >
                     <Show when={section()?.group}>
                       {(group) => (
-                        <TabGroupHeader
-                          group={group()}
-                          count={section()?.keys.length ?? 0}
-                          first={groups.list()[0]?.id === id}
-                          last={groups.list().at(-1)?.id === id}
-                          renaming={renaming() === id}
-                          onRenamed={(title) => {
-                            setRenaming(undefined)
+                        <GroupHeaderSlot id={groupEntry(id)} index={entries().indexOf(groupEntry(id))}>
+                          <TabGroupHeader
+                            group={group()}
+                            count={section()?.keys.length ?? 0}
+                            first={groups.list()[0]?.id === id}
+                            last={groups.list().at(-1)?.id === id}
+                            renaming={renaming() === id}
+                            onRenamed={(title) => {
+                              setRenaming(undefined)
 
-                            if (title) groups.rename(id, title)
-                          }}
-                          onRename={() => setRenaming(id)}
-                          onToggle={() => groups.toggle(id)}
-                          onMove={(offset) => groups.move(id, offset)}
-                          onDelete={() => groups.remove(id)}
-                        />
+                              if (title) renameGroup(id, title)
+                            }}
+                            onRename={() => setRenaming(id)}
+                            onToggle={() => groups.toggle(id)}
+                            onMove={(offset) => groups.move(id, offset)}
+                            onDelete={() => removeGroup(id)}
+                            onCreate={() => createGroup()}
+                          />
+                        </GroupHeaderSlot>
                       )}
                     </Show>
                     <div
@@ -502,7 +641,7 @@ export function TitlebarTabStrip(props: {
                         )}
                       </For>
                     </div>
-                  </>
+                  </div>
                 )
               }}
             </For>
@@ -528,6 +667,7 @@ export function TitlebarTabStrip(props: {
     const id = tabKey(tab)
     let ref!: HTMLDivElement
     const visibleIndex = () => visibleTabs().findIndex((item) => tabKey(item) === id)
+    const sortIndex = () => entries().indexOf(id)
     useTabShortcut(visibleIndex, () => props.onNavigate(tab, ref))
 
     const serverCtx = useServerCtx(() => {
@@ -541,7 +681,7 @@ export function TitlebarTabStrip(props: {
         <SessionTabEntry
           tab={tab}
           id={id}
-          index={visibleIndex()}
+          index={sortIndex()}
           active={props.currentTab === tab}
           orientation={vertical() ? "vertical" : "horizontal"}
           serverCtx={serverCtx()}
@@ -561,7 +701,7 @@ export function TitlebarTabStrip(props: {
       <DraftTabSlot
         tab={tab}
         id={id}
-        index={visibleIndex()}
+        index={sortIndex()}
         active={props.currentTab === tab}
         orientation={vertical() ? "vertical" : "horizontal"}
         title={language.t("session.tab.session")}

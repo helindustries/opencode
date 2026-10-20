@@ -1,5 +1,5 @@
 import { RemoteControl } from "@opencode/schema/remote-control"
-import { createEffect, createMemo, onCleanup } from "solid-js"
+import { batch, createEffect, createMemo, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { useGlobal } from "@/runtime/server/runtime"
@@ -46,9 +46,13 @@ export function createMeshFeed(fallback: () => ServerConnection.Any | undefined)
       const plugins = await server.plugin.list().catch(() => undefined)
       const loaded = plugins?.data.some((plugin) => plugin.id === RemoteControl.PluginID) ?? false
       const status = loaded ? await rc.status(undefined).catch(() => undefined) : undefined
-      const records = status ? await rc["sessions.list"]({}).catch(() => []) : []
-      setState("status", reconcile(status))
-      setState("records", reconcile(records, { key: "session_id" }))
+      const records = status ? await rc["sessions.list"]({ include_local: true }).catch(() => []) : []
+      // Together: records without their status count this machine's own as remote, a status without its records
+      // reads as a mesh that holds nothing.
+      batch(() => {
+        setState("records", reconcile(records, { key: "session_id" }))
+        setState("status", reconcile(status))
+      })
     }
 
     void refresh()
@@ -62,7 +66,11 @@ export function createMeshFeed(fallback: () => ServerConnection.Any | undefined)
     })
   })
 
-  const supported = createMemo(() => state.records.filter((record) => record.harness === RemoteControl.Harness))
+  // This machine's own records are listed too, for the sidebar group they carry.
+  const isLocal = (record: MeshRecord) =>
+    !!state.status?.mesh.node_id && record.origin_host === `${RemoteControl.Harness}@${state.status.mesh.node_id}`
+  const remote = createMemo(() => state.records.filter((record) => !isLocal(record)))
+  const supported = createMemo(() => remote().filter((record) => record.harness === RemoteControl.Harness))
   const connected = (record: MeshRecord) => state.now - record.last_seen < connectedWindow
 
   return {
@@ -72,7 +80,8 @@ export function createMeshFeed(fallback: () => ServerConnection.Any | undefined)
     available: () => state.status !== undefined,
     connected: createMemo(() => supported().filter(connected)),
     past: createMemo(() => supported().filter((record) => !connected(record))),
-    unsupported: () => state.records.length - supported().length,
+    local: createMemo(() => state.records.filter(isLocal)),
+    unsupported: () => remote().length - supported().length,
     attachable: (record: MeshRecord) =>
       state.status?.desktop !== "notify" && record.capabilities.includes("attach") && record.auth_blob !== "",
     refresh: () => {
@@ -80,7 +89,7 @@ export function createMeshFeed(fallback: () => ServerConnection.Any | undefined)
 
       if (!rc) return Promise.resolve()
 
-      return rc["sessions.list"]({}).then(
+      return rc["sessions.list"]({ include_local: true }).then(
         (records) => setState("records", reconcile(records, { key: "session_id" })),
         () => undefined,
       )

@@ -26,6 +26,7 @@ export type TabGrouping = {
   current: string | undefined
   assign: (groupID: string | undefined) => void
   create: () => void
+  createEmpty: () => void
 }
 
 export function TabNavItem(props: {
@@ -491,6 +492,11 @@ export function TabNavItem(props: {
                   </Menu.SubContent>
                 </Menu.Portal>
               </Menu.Sub>
+            )}
+          </Show>
+          <Show when={props.grouping} keyed>
+            {(grouping) => (
+              <Menu.Item onSelect={grouping.createEmpty}>{language.t("home.sessions.group.newEmpty")}</Menu.Item>
             )}
           </Show>
           <Menu.Item onSelect={props.onClose}>{language.t("common.closeTab")}</Menu.Item>
