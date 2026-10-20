@@ -23,7 +23,7 @@ export function fakeMesh(nodeID = "a".repeat(32)) {
           origin_host: `${body.harness}@${nodeID}`,
           revoked: revokeOnUpsert.has(body.session_id),
           last_seen: Date.now(),
-          group_tag: null,
+          group_tag: body.group_tag ?? null,
           origin_addr: null,
         }
         records.set(body.session_id, record)

@@ -95,6 +95,27 @@ describe("server plugin", () => {
     expect(record.shared_at).toBeGreaterThanOrEqual(before)
   })
 
+  test("share.group republishes the session with its group, and a new share keeps it", async () => {
+    const run = await start()
+    await run.call("share.start", { session_id: "ses_1" })
+    await until(() => run.mesh.records.get("ses_1"), "ses_1 published")
+    expect(run.mesh.records.get("ses_1")?.group_tag).toBeNull()
+    await run.call("share.group", { session_id: "ses_1", group: "Remote work" })
+    await until(() => run.mesh.records.get("ses_1")?.group_tag === "Remote work", "group published")
+    await run.call("share.start", { session_id: "ses_1" })
+    expect(run.storage.get("state")).toMatchObject({ shared: { ses_1: { group: "Remote work" } } })
+    await run.call("share.group", { session_id: "ses_1", group: null })
+    await until(() => run.mesh.records.get("ses_1")?.group_tag === null, "group cleared")
+  })
+
+  test("share.group on a session this server does not share is not found", async () => {
+    const run = await start()
+    expect(await run.call("share.group", { session_id: "ses_1", group: "Remote work" })).toMatchObject({
+      type: "not_found",
+      data: { session_id: "ses_1" },
+    })
+  })
+
   test("a rename republishes and a delete revokes", async () => {
     const run = await start()
     await run.call("share.start", { session_id: "ses_1" })

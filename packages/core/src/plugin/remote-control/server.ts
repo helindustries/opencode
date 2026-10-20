@@ -13,7 +13,7 @@ const capabilities = ["attach", "prompt", "question", "permission"]
 const stateKey = "state"
 
 type Hint = RemoteControl.Record["client_hint"]
-type Share = { at: number; hint: Hint }
+type Share = { at: number; hint: Hint; group?: string | null }
 type State = { active: boolean; target: string | null; shared: Record<string, Share> }
 type Instance = { sync: () => Promise<void>; emit: (event: "mesh.changed" | "state.changed", data: object) => void }
 type Runtime = {
@@ -73,6 +73,7 @@ export default Plugin.define({
         origin_user: owner,
         client_hint: share.hint,
         auth_blob: authBlob(endpoint),
+        group_tag: share.group ?? null,
         shared_at: share.at,
       })
     }
@@ -169,7 +170,11 @@ export default Plugin.define({
         runtime.state.target = address ?? runtime.state.target
         // An explicit share starts over, so it outranks a revoke the mesh holds from an earlier share.
         if (input.session_id)
-          runtime.state.shared[input.session_id] = { at: Date.now(), hint: input.client_hint ?? "tui" }
+          runtime.state.shared[input.session_id] = {
+            at: Date.now(),
+            hint: input.client_hint ?? "tui",
+            group: runtime.state.shared[input.session_id]?.group,
+          }
         await runtime.save()
         await Promise.all([...runtime.instances].map((instance) => instance.sync()))
         broadcast("state.changed", { active: true })
@@ -186,6 +191,16 @@ export default Plugin.define({
         runtime.state = { active: false, target: null, shared: {} }
         await runtime.save()
         broadcast("state.changed", { active: false })
+        return status()
+      },
+      // Only the sharing server publishes a session's record, so a desktop on any machine groups a
+      // shared session through the server that shares it.
+      "share.group": async (input, context) => {
+        const share = runtime.state.shared[input.session_id]
+        if (!share) return context.error("not_found", `not shared here: ${input.session_id}`, input)
+        share.group = input.group
+        await runtime.save()
+        await publish(input.session_id)
         return status()
       },
     })

@@ -18,6 +18,7 @@ export type Publication = Pick<
   | "origin_user"
   | "client_hint"
   | "auth_blob"
+  | "group_tag"
   | "shared_at"
 >
 

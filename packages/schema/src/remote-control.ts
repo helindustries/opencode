@@ -102,6 +102,18 @@ export const Definition = Rpc.define({
       },
     },
     "share.stop": { input: Schema.toStandardSchemaV1(Schema.Undefined), output: Schema.toStandardSchemaV1(Status) },
+    "share.group": {
+      input: Schema.toStandardSchemaV1(
+        Schema.Struct({
+          session_id: Schema.String,
+          group: Schema.NullOr(Schema.String).annotate({
+            description: "The sidebar group title every desktop shows the session under; null for none.",
+          }),
+        }),
+      ),
+      output: Schema.toStandardSchemaV1(Status),
+      errors: { not_found: Schema.toStandardSchemaV1(Schema.Struct({ session_id: Schema.String })) },
+    },
   },
   events: {
     "mesh.changed": {
