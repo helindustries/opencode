@@ -2186,9 +2186,13 @@ ToolRegistry.register({
   name: "write",
   render(props) {
     const fileComponent = useFileComponent()
+    const metadata = createMemo(() => toolMetadata(props.metadata))
     const path = createMemo(() => toolInput(props.input).path ?? "")
     const content = createMemo(() => toolInput(props.input).content ?? "")
-    const diagnostics = createMemo(() => getDiagnostics(toolMetadata(props.metadata).diagnostics, path()))
+    const diff = createMemo(() => metadata().files?.find(changedFileDiff))
+    const diagnostics = createMemo(() => getDiagnostics(metadata().diagnostics, path()))
+
+    const pending = () => props.status === "streaming" || props.status === "running"
 
     return (
       <div data-component="write-tool">
@@ -2200,6 +2204,11 @@ ToolRegistry.register({
             onOpenChange={props.onOpenChange}
             forceOpen={props.forceOpen}
             defer={props.deferContent !== false}
+            actions={
+              <Show when={!pending() ? diff() : undefined}>
+                {(diff) => <DiffChanges appearance="standard" changes={diff()} />}
+              </Show>
+            }
           >
             <div data-component="write-content">
               <Dynamic

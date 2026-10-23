@@ -255,6 +255,15 @@ export const DiffTotals = {
     })
     const edit = (id: string, files: ReturnType<typeof change>[]) =>
       storyTool(id, "edit", "completed", { path: files[0]?.file ?? "" }, { metadata: { files } })
+
+    const write = (id: string, files: ReturnType<typeof change>[]) =>
+      storyTool(
+        id,
+        "write",
+        "completed",
+        { path: files[0]?.file ?? "", content: "line\n".repeat(files[0]?.additions ?? 0) },
+        { metadata: { files } },
+      )
     const shell = (id: string) => storyTool(id, "shell", "completed", { command: "bun test" }, { output: "ok" })
 
     const cases: Array<[string, ContextGroupPart[]]> = [
@@ -267,8 +276,22 @@ export const DiffTotals = {
         ],
       ],
       [
+        // Writes carry the same diff metadata since the write tool reported it;
+        // without it a rollup would silently fold writes as zero changes.
+        "folded writes",
+        [
+          write("write_overwrite", [change("src/w.ts", "modified", 18, 6)]),
+          write("write_create", [change("src/x.ts", "added", 30, 0)]),
+        ],
+      ],
+      [
         "mixed with commands",
-        [shell("mixed_shell"), edit("mixed_edit", [change("src/d.ts", "modified", 7, 2)]), shell("mixed_tail")],
+        [
+          shell("mixed_shell"),
+          edit("mixed_edit", [change("src/d.ts", "modified", 7, 2)]),
+          write("mixed_write", [change("src/e.ts", "modified", 3, 2)]),
+          shell("mixed_tail"),
+        ],
       ],
       ["commands only", [shell("commands_a"), shell("commands_b")]],
       ["empty diff", [storyTool("empty_edit", "edit", "completed", { path: "src/e.ts" }, { metadata: { files: [] } })]],
