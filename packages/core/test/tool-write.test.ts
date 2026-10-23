@@ -119,6 +119,18 @@ describe("WriteTool", () => {
               existed: false,
             },
             content: [{ type: "text", text: "Created file successfully: src/new.txt" }],
+            // Compact UI metadata carries the file diff the TUI renders beside the foldout.
+            metadata: {
+              files: [
+                {
+                  file: "src/new.txt",
+                  status: "added",
+                  additions: 1,
+                  deletions: 0,
+                  patch: expect.stringContaining("+created"),
+                },
+              ],
+            },
           })
           expect(yield* Effect.promise(() => fs.readFile(path.join(tmp.path, "src", "new.txt"), "utf8"))).toBe(
             "created",
@@ -156,10 +168,13 @@ describe("WriteTool", () => {
         })
       return withTool(tmp.path, fixture, (registry) =>
         Effect.gen(function* () {
-          expect(yield* executeTool(registry, call({ path: "formatted.txt", content: "format me" }))).toMatchObject({
-            status: "completed",
-          })
+          const settled = yield* executeTool(registry, call({ path: "formatted.txt", content: "format me" }))
+          expect(settled.status).toBe("completed")
+          if (settled.status !== "completed") return
           expect(yield* Effect.promise(() => fs.readFile(target, "utf8"))).toBe("FORMAT ME")
+          // The metadata diff is against the formatted bytes, not the request content.
+          expect(settled.metadata?.files?.[0]?.patch).toContain("+FORMAT ME")
+          expect(settled.metadata?.files?.[0]?.patch).not.toContain("+format me")
         }),
       )
     }),
@@ -180,6 +195,17 @@ describe("WriteTool", () => {
             if (settled.status !== "completed") return
             expect(settled.content).toEqual([{ type: "text", text: "Wrote file successfully: existing.txt" }])
             expect(settled.output).toMatchObject({ resource: "existing.txt", existed: true })
+            expect(settled.metadata).toMatchObject({
+              files: [
+                {
+                  file: "existing.txt",
+                  status: "modified",
+                  additions: 1,
+                  deletions: 1,
+                  patch: expect.stringMatching(/-before[\s\S]*\+after/),
+                },
+              ],
+            })
             expect(fixture.assertions[0]?.metadata).toMatchObject({
               files: [
                 {

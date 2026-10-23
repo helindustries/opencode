@@ -86,12 +86,21 @@ export const Plugin = {
               })
               const result = yield* fileMutation.writeTextPreservingBom({ target, content: input.content })
               const bom = (yield* FileMutation.readText(environment.files, target.absolute)).bom
-              if (yield* formatter.file(target.absolute)) {
-                yield* FileMutation.syncTextBom(environment.files, target.absolute, bom)
+              // The reported +/- counts are the diff against the formatted result,
+              // so they match the bytes on disk, same as the edit tool's metadata.
+              const formatted = (yield* formatter.file(target.absolute))
+                ? yield* FileMutation.syncTextBom(environment.files, target.absolute, bom)
+                : (yield* FileMutation.readText(environment.files, target.absolute)).text
+              return {
+                result,
+                files: [fileDiff(result.resource, current?.text ?? "", formatted, current ? "modified" : "added")],
               }
-              return result
             }).pipe(
-              Effect.map((output) => ({ output, content: toModelContent(output) })),
+              Effect.map(({ result, files }) => ({
+                output: result,
+                content: toModelContent(result),
+                metadata: { files },
+              })),
               Effect.mapError((error) => new ToolFailure({ message: `Unable to write ${input.path}`, error })),
             ),
         }),
