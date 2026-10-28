@@ -2717,6 +2717,7 @@ function StatusBadge(props: { children: string; raised?: boolean }) {
 type BlockToolProps = {
   title?: string
   path?: { label: string; value: string }
+  changes?: { additions: number; deletions: number }
   headerColor?: RGBA
   children?: JSX.Element
   onClick?: () => void
@@ -2736,6 +2737,11 @@ function BlockTool(props: BlockToolProps) {
     () => props.error ?? (props.part?.state.status === "error" ? props.part.state.error.message : undefined),
   )
   const permission = useToolPermission(() => props.part)
+  const additions = () => props.changes?.additions ?? 0
+  const deletions = () => props.changes?.deletions ?? 0
+  const changesWidth = () =>
+    (additions() > 0 ? stringWidth(`+${additions()}`) + 1 : 0) +
+    (deletions() > 0 ? stringWidth(`-${deletions()}`) + 1 : 0)
   return (
     <box
       border={["left"]}
@@ -2796,9 +2802,22 @@ function BlockTool(props: BlockToolProps) {
             </Show>
             <FilePath
               value={path().value}
-              maxWidth={Math.max(2, ctx.width - 4 - stringWidth(path().label) - (props.spinner ? 2 : 0))}
+              maxWidth={Math.max(
+                2,
+                ctx.width - 4 - stringWidth(path().label) - (props.spinner ? 2 : 0) - changesWidth(),
+              )}
               fg={permission() ? theme.text.feedback.warning.base : (props.headerColor ?? theme.text.muted)}
             />
+            <Show when={additions() > 0}>
+              <text flexShrink={0} fg={theme.diff.text.added}>
+                +{additions()}
+              </text>
+            </Show>
+            <Show when={deletions() > 0}>
+              <text flexShrink={0} fg={theme.diff.text.removed}>
+                -{deletions()}
+              </text>
+            </Show>
           </box>
         )}
       </Show>
@@ -2993,12 +3012,14 @@ function Write(props: ToolProps) {
   const code = createMemo(() => {
     return stringValue(props.input.content) ?? ""
   })
+  const file = createMemo(() => parseApplyPatchFiles(props.metadata.files)[0])
 
   return (
     <Switch>
       <Match when={props.part.state.status === "completed"}>
         <BlockTool
           path={{ label: "# Wrote", value: pathFormatter.format(stringValue(props.input.path)) }}
+          changes={file()}
           part={props.part}
         >
           <line_number fg={theme.text.muted} minWidth={3} paddingRight={1}>
@@ -3297,7 +3318,7 @@ function Edit(props: ToolProps) {
     <Switch>
       <Match when={file()}>
         {(item) => (
-          <BlockTool path={{ label: "← Edit", value: pathFormatter.format(path()) }} part={props.part}>
+          <BlockTool path={{ label: "← Edit", value: pathFormatter.format(path()) }} changes={item()} part={props.part}>
             <box paddingLeft={1}>
               <PatchDiff
                 diff={item().patch}
