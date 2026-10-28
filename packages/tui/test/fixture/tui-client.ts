@@ -167,6 +167,8 @@ export function createFetch(override?: FetchHandler, events?: ReturnType<typeof 
     if (url.pathname === "/session") return json([])
     if (url.pathname === "/vcs") return json({ branch: "main" })
     if (url.pathname === "/api/experimental/migration/v1") return json({ status: "completed" })
+    // A server without the remote-control plugin; the TUI plugin hides itself on failure.
+    if (url.pathname.startsWith("/api/rpc/rc/")) return new Response(null, { status: 404 })
     throw new Error(`unexpected request: ${url.pathname}`)
   }
   fetch.preconnect = () => {}

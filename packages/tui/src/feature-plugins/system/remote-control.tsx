@@ -11,8 +11,10 @@ export default Plugin.define({
     const toast = (variant: "info" | "success" | "warning" | "error", message: string) =>
       context.ui.toast.show({ title: "Remote control", message, variant })
 
-    rc.events.on("state.changed", () => void refresh())
-    rc.events.on("mesh.changed", () => void refresh())
+    const unsubscribe = [
+      rc.events.on("state.changed", () => void refresh()),
+      rc.events.on("mesh.changed", () => void refresh()),
+    ]
     void refresh()
 
     const start = (input: { session_id?: string; target?: string }) =>
@@ -150,6 +152,9 @@ export default Plugin.define({
       ],
     }))
 
-    return dispose
+    return () => {
+      unsubscribe.forEach((stop) => stop())
+      dispose()
+    }
   },
 })
